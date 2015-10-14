@@ -54,6 +54,7 @@
 #include "smd_private.h"
 #include "modem_notifier.h"
 #include "smem_private.h"
+#include <linux/gpio.h> //ASUS-BBSP Read Modem SKU GPIO+
 
 #define SMD_VERSION 0x00020000
 #define SMSM_SNAPSHOT_CNT 64
@@ -223,6 +224,13 @@ static inline void smd_write_intr(unsigned int val,
 #endif
 
 #define SMD_LOOPBACK_CID 100
+
+//ASUS-BBSP Read Modem SKU GPIO+++
+#define MODEM_SKU_GPIO_108 108
+#define MODEM_SKU_GPIO_109 109
+static int modemsku = 0;
+module_param(modemsku, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+//ASUS-BBSP Read Modem SKU GPIO---
 
 static LIST_HEAD(smd_ch_list_loopback);
 static void smd_fake_irq_handler(unsigned long arg);
@@ -3423,6 +3431,12 @@ int __init msm_smd_init(void)
 	int rc;
 	int i;
 
+	//ASUS-BBSP Read Modem SKU GPIO+++
+	int ret;
+	int gpio_108_value = 0;
+	int gpio_109_value = 0;
+	//ASUS-BBSP Read Modem SKU GPIO---
+
 	if (registered)
 		return 0;
 
@@ -3459,6 +3473,42 @@ int __init msm_smd_init(void)
 			__func__, rc);
 		return rc;
 	}
+
+	//ASUS-BBSP Read Modem SKU GPIO+++
+	/*
+	 * Modem SKU  GPIO_109 GPIO_108 Note
+	 * Modem_SKU0 0        0        CN (Default)
+	 * Modem_SKU1 0        1        TWN/APAC
+	 * Modem_SKU2 1        0        EU/WW
+	 * Modem_SKU3 1        1        JP
+	 */
+	ret = gpio_request(MODEM_SKU_GPIO_108, "MODEM_SKU_GPIO_108");
+	if (ret<0) {
+	  printk("gpio_request failed for gpio %d\n", MODEM_SKU_GPIO_108);
+	} else {
+	  gpio_108_value = gpio_get_value(MODEM_SKU_GPIO_108);
+	}
+
+	ret = gpio_request(MODEM_SKU_GPIO_109, "MODEM_SKU_GPIO_109");
+	if (ret<0) {
+	  printk("gpio_request failed for gpio %d\n", MODEM_SKU_GPIO_109);
+	} else {
+	  gpio_109_value = gpio_get_value(MODEM_SKU_GPIO_109);
+	}
+
+	if (gpio_108_value == 1) {
+		modemsku += 1;
+	}
+	if (gpio_109_value == 1) {
+		modemsku += 2;
+	}
+
+	printk("modemsku = %d;gpio_108_value = %d;gpio_109_value = %d\n", modemsku,gpio_108_value,gpio_109_value);
+
+	gpio_free(MODEM_SKU_GPIO_108);
+	gpio_free(MODEM_SKU_GPIO_109);
+	//ASUS-BBSP Read Modem SKU GPIO---
+
 	return 0;
 }
 
