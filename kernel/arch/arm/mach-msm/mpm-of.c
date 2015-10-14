@@ -576,7 +576,7 @@ void msm_mpm_exit_sleep(bool from_idle)
 
 			if(i < MSM_MPM_REG_PENDING_WIDTH){
 				if(mpm_irq != 0 && apps_irq != 0){
-					pr_info("[PM]MPM pending.%d: 0x%08lx, mpm_irq: %d, apps_irq: %d\n", i, pending, mpm_irq, apps_irq);
+					if(!from_idle) pr_info("[PM]MPM pending.%d: 0x%08lx, mpm_irq: %d, apps_irq: %d\n", i, pending, mpm_irq, apps_irq);
 					resume_mpm_pending_irq[i].pending = pending;
 					resume_mpm_pending_irq[i].mpm_irq[mpm_pending_cont[i]] = mpm_irq;
 					resume_mpm_pending_irq[i].apps_irq[mpm_pending_cont[i]] = apps_irq;

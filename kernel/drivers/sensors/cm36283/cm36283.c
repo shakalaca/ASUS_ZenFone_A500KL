@@ -125,7 +125,7 @@ static u16 g_last_cm36283_light=0;
 static int g_cm36283_light_first=1;
 
 // adc is the value that is returned from HW directly ( Original adb number )
-static u16 g_cm36283_light_adc = 0;
+static u32 g_cm36283_light_adc = 0;
 static int g_cm36283_light_k_adc = 0;
 
 static int g_nProxm_Faraway = 1;	//means no object detected!
@@ -2059,7 +2059,7 @@ static int get_adc_calibrated_lux_from_cm36283(void)
 {
 	unsigned char buff[2] = {0,0};
 	int ret = 0;
-	u16 tmp = g_cm36283_light_adc;
+	u32 tmp = g_cm36283_light_adc;
 	u8 lobyte = 0;
 	u8 hibyte = 0;
 

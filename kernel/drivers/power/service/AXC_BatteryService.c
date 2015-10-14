@@ -248,7 +248,7 @@ bool charger_limit_enable = true;
 bool g_5060modeCharging = true;//only set online 0 to show Notcharging icon in factory branch, let bsp version can normal show online status
 #endif
 //frank_tao: Factory5060Mode---
-
+bool force_report_100 = false;
 #ifdef CONFIG_PM_8226_CHARGER
 void asus_fsm_chargingstop(AXE_Charging_Error_Reason reason)
 {
@@ -2967,6 +2967,8 @@ void AXC_BatteryService_forceReportCapacity(void)
 	{
 		cancel_delayed_work_sync(&balance_this->BatteryServiceUpdateWorker);
 	}
+	if(gBMS_Cap == 100)
+		force_report_100 =true;
 	balance_this->NeedCalCap=true;
 	queue_delayed_work(balance_this->BatteryServiceCapUpdateQueue, &balance_this->BatteryServiceUpdateWorker, 0);
 }
@@ -3558,13 +3560,15 @@ static void DecideIsFull(struct AXC_BatteryService *_this,int nowGaugeCap,bool h
 			|| CHARGING_FULL_KEEP_STATE==balance_this->fsmState
 			|| CHARGING_FULL_KEEP_STOP_STATE==balance_this->fsmState)
 		{
+			force_report_100 = false;
 			DoAfterDecideFull(_this);
 		}
 
 #ifdef CONFIG_PM_8226_CHARGER
-		else if(true==pm8226_is_full())
+		else if(true == pm8226_is_full() || (gBMS_Cap == 100 && force_report_100 == true && pm8226_is_ac_usb_in()))
 		{
-			printk("[BAT][Ser]pm8226_is_full\n");
+			pr_info("pm8226_is_full,force_report_100!\n");
+			force_report_100 = false;
 			DoAfterDecideFull(_this);
 		}
 #endif

@@ -242,30 +242,30 @@ static int set_hardware_ddr_info(char *str)
 		return 0;
 
 	sep_pos = sep - str;
-	if(strcmp("ELPIDA", str))
+	if(strncmp("ELPIDA", str, sep_pos) == 0)
 	{
 		oem_hardware_ddr_type_val = DDR_ELPIDA;
 	}
-	else if(strcmp("HYNIX", str))
+	else if(strncmp("HYNIX", str, sep_pos) == 0)
 	{
 		oem_hardware_ddr_type_val = DDR_HYNIX;
 	}
-	else if(strcmp("SAMSUNG", str))
+	else if(strncmp("SAMSUNG", str, sep_pos) == 0)
 	{
 		oem_hardware_ddr_type_val = DDR_SAMSUNG;
 	}
-	else if(strcmp("HYNIX_LPDDR2", str))
+	else if(strncmp("HYNIX_LPDDR2", str, sep_pos) == 0)
 	{
 		oem_hardware_ddr_type_val = DDR_HYNIX_LPDDR2;
 	}
 
-	if(strcmp("-1G", sep))
+	if(strcmp("-1G", sep) == 0)
 	{
 		oem_hardware_ddr_size_val = DDR_SIZE_1G;
 	}
-	else if(strcmp("-2G", sep))
+	else if(strcmp("-2G", sep) == 0)
 	{
-		oem_hardware_ddr_size_val = DDR_SIZE_1G;
+		oem_hardware_ddr_size_val = DDR_SIZE_2G;
 	}
 
 	printk("DDR_TYPE=%d DDR_SIZE=%d\n", oem_hardware_ddr_type_val, oem_hardware_ddr_size_val);
