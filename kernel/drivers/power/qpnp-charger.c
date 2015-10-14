@@ -3608,7 +3608,7 @@ qpnp_chg_regulator_boost_enable(struct regulator_dev *rdev)
 	struct qpnp_chg_chip *chip = rdev_get_drvdata(rdev);
 	int usb_present = qpnp_chg_is_usb_chg_plugged_in(chip);
 	int rc;
-
+	printk("boost enable !\n");
 	if (usb_present && (chip->flags & BOOST_FLASH_WA)) {
 
 		if (ext_ovp_isns_present && chip->ext_ovp_ic_gpio_enabled) {
@@ -3665,7 +3665,7 @@ qpnp_chg_regulator_boost_disable(struct regulator_dev *rdev)
 	struct qpnp_chg_chip *chip = rdev_get_drvdata(rdev);
 	int rc;
 	u8 vbat_sts;
-
+	printk("boost disable !\n");
 	rc = qpnp_chg_masked_write(chip,
 		chip->boost_base + BOOST_ENABLE_CONTROL,
 		BOOST_PWR_EN,

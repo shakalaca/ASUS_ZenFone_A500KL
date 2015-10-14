@@ -3985,6 +3985,7 @@ static void AXC_BatteryService_reportPropertyCapacity(struct AXC_BatteryService 
 				gpCharger->EnableCharging(gpCharger,true);
 		}
 #else
+	printk("capacity: %d , pm8226_is_ac_usb_in : %d , is_boost_enable: %d \n",A66_capacity,pm8226_is_ac_usb_in(),is_boost_enable());
 	if(A66_capacity<100&&pm8226_is_ac_usb_in()&&is_boost_enable()==0)
 	{
 		gpCharger->EnableCharging(gpCharger,true);

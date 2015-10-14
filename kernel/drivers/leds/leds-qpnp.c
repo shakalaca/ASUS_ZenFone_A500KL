@@ -898,7 +898,9 @@ static int qpnp_flash_regulator_operate(struct qpnp_led_data *led, bool on)
 
 	for (i = 0; i < led->num_leds; i++)
 		regulator_on |= led_array[i].flash_cfg->flash_on;
-
+	
+	pr_info("on: %d   regulator_on: %d \n",on,regulator_on);
+	
 	if (!on)
 		goto regulator_turn_off;
 
@@ -3959,7 +3961,7 @@ static ssize_t asus_flash_brightness_write_proc(struct file *filp, const char __
 {
 	unsigned long state;
 	char buf[5];
-	int rc = 0;
+	//int rc = 0;
 	int ret = 0;
 	struct qpnp_led_data *led;
 	struct led_classdev *led_cdev = flash_brightness_dev;
@@ -3997,7 +3999,7 @@ static ssize_t asus_flash_brightness_write_proc(struct file *filp, const char __
 		}else{
 			led->flash_cfg->torch_enable = false;
 			led->cdev.brightness = 0;
-			qpnp_flash_set(led);
+			schedule_work(&led->work);
 			led->flash_cfg->torch_enable = true;
 			led->max_current = 200;
 			led->flash_cfg->enable_module = 224;
@@ -4010,7 +4012,7 @@ static ssize_t asus_flash_brightness_write_proc(struct file *filp, const char __
 		led_flag = 0;
 		led->cdev.brightness = 0;
 	}
-	rc = qpnp_flash_set(led);
+	schedule_work(&led->work);
 	printk("%s X\n",__func__);
 	return len;
 }
