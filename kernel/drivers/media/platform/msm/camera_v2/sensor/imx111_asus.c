@@ -34,7 +34,7 @@ static struct msm_sensor_ctrl_t imx111_asus_s_ctrl;
 static u8 imx111_asus_otp_value[24]={0};
 #define imx111_opt_start 0x3500
 #define opt_size 24
-extern int a500kl_camera_debug;
+//extern int a500kl_camera_debug;
 
 int sensor_read_reg(struct i2c_client *client, u16 addr, u16 *val)
 {
@@ -340,11 +340,11 @@ static ssize_t cci_stress_test_write(struct file *file, const char __user *buf, 
 
 	if (arg == 0)
 	{
-		a500kl_camera_debug = 1;
+		//a500kl_camera_debug = 1;
 		return len;
 	} else if (arg == 0xff)
 	{
-		a500kl_camera_debug = 0;
+		//a500kl_camera_debug = 0;
 		return len;
 	}
 

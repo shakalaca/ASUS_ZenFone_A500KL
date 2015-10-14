@@ -323,8 +323,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
-		if ((p->signal->oom_adj <= 2)&&(0 == strcmp(p->comm,"d.process.media")))
-			continue;
 		if (selected) {
 			if (oom_score_adj < selected_oom_score_adj)
 				continue;

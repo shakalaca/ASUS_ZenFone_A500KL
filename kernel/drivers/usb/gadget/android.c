@@ -72,6 +72,7 @@
 #include "f_acm.c"
 #include "f_adb.c"
 #include "f_ccid.c"
+#include "f_pclink.c"
 #include "f_mtp.c"
 #include "f_accessory.c"
 #define USB_ETH_RNDIS y
@@ -551,6 +552,42 @@ static void adb_closed_callback(void)
 		mutex_unlock(&dev->mutex);
 }
 
+/*-------------------------------------------------------------------------*/
+/* Supported functions initialization. Jeffrey: ASUS PCLink AP new adb, f_pclink.c */
+
+struct conn_gadget_data {
+	bool opened;
+	bool enabled;
+};
+
+static int pclink_function_init(struct android_usb_function *f,
+		struct usb_composite_dev *cdev)
+{
+	f->config = kzalloc(sizeof(struct conn_gadget_data), GFP_KERNEL);
+	if (!f->config)
+		return -ENOMEM;
+
+	return conn_gadget_setup();
+}
+
+static void pclink_function_cleanup(struct android_usb_function *f)
+{
+	conn_gadget_cleanup();
+	kfree(f->config);
+}
+
+static int pclink_function_bind_config(struct android_usb_function *f,
+		struct usb_configuration *c)
+{
+	return conn_gadget_bind_config(c);
+}
+
+static struct android_usb_function pclink_function = {
+	.name = "pclink",
+	.init = pclink_function_init,
+	.cleanup = pclink_function_cleanup,
+	.bind_config = pclink_function_bind_config,
+};
 
 /*-------------------------------------------------------------------------*/
 /* Supported functions initialization */
@@ -1773,6 +1810,7 @@ struct mass_storage_function_config {
 	struct fsg_common *common;
 };
 
+#define MAX_LUN_NAME 8
 static int mass_storage_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
@@ -1780,8 +1818,9 @@ static int mass_storage_function_init(struct android_usb_function *f,
 	struct mass_storage_function_config *config;
 	struct fsg_common *common;
 	int err;
-	int i;
-	const char *name[3];
+	int i, n;
+	char name[FSG_MAX_LUNS][MAX_LUN_NAME];
+	u8 uicc_nluns = dev->pdata ? dev->pdata->uicc_nluns : 0;
 
 	config = kzalloc(sizeof(struct mass_storage_function_config),
 								GFP_KERNEL);
@@ -1794,11 +1833,23 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		config->fsg.luns[0].cdrom = 1;
 		config->fsg.luns[0].ro = 1;
 		config->fsg.luns[0].removable = 0;
-		name[0] = "lun0";
+		snprintf(name[0], MAX_LUN_NAME, "lun0");
 	}
 //ASUS_BSP--- "[USB][NA][FIX] Add cdrom to put installation file
+ 	config->fsg.luns[0].removable = 1;
 
-	config->fsg.luns[0].removable = 1;
+
+	if (uicc_nluns > FSG_MAX_LUNS - config->fsg.nluns) {
+		uicc_nluns = FSG_MAX_LUNS - config->fsg.nluns;
+		pr_debug("limiting uicc luns to %d\n", uicc_nluns);
+	}
+
+	for (i = 0; i < uicc_nluns; i++) {
+		n = config->fsg.nluns;
+		snprintf(name[n], MAX_LUN_NAME, "uicc%d", i);
+		config->fsg.luns[n].removable = 1;
+		config->fsg.nluns++;
+	}
 
 	common = fsg_common_init(NULL, cdev, &config->fsg);
 	if (IS_ERR(common)) {
@@ -2033,6 +2084,7 @@ static struct android_usb_function *supported_functions[] = {
 	&diag_function,
 	&qdss_function,
 	&serial_function,
+	&pclink_function,
 	&adb_function,
 	&ccid_function,
 	&acm_function,
@@ -2788,6 +2840,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	struct android_configuration	*conf;
 	int value = -EOPNOTSUPP;
 	unsigned long flags;
+	bool do_work = false;
+	bool prev_configured = false;
 
 	req->zero = 0;
 	req->complete = composite_setup_complete;
@@ -2807,6 +2861,12 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 			}
 		}
 
+	/*
+	 * skip the  work when 2nd set config arrives
+	 * with same value from the host.
+	 */
+	if (cdev->config)
+		prev_configured = true;
 	/* Special case the accessory function.
 	 * It needs to handle control requests before it is enabled.
 	 */
@@ -2819,13 +2879,15 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!dev->connected) {
 		dev->connected = 1;
-		schedule_work(&dev->work);
+		do_work = true;
 	} else if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
 						cdev->config) {
-		schedule_work(&dev->work);
+		if (!prev_configured)
+			do_work = true;
 	}
 	spin_unlock_irqrestore(&cdev->lock, flags);
-
+	if (do_work)
+		schedule_work(&dev->work);
 	return value;
 }
 
@@ -3053,6 +3115,10 @@ static int __devinit android_probe(struct platform_device *pdev)
 		}
 
 		pdata->streaming_func_count = len;
+
+		ret = of_property_read_u32(pdev->dev.of_node,
+				"qcom,android-usb-uicc-nluns",
+				&pdata->uicc_nluns);
 	} else {
 		pdata = pdev->dev.platform_data;
 	}

@@ -27,21 +27,12 @@ config MMC_PERF_PROFILING
 	  If you say Y here, support will be added for collecting
 	  performance numbers at the MMC Queue and Host layers.
 
-config MMC_SUSPENDTEST
-	bool "MMC suspend stress test"
-	depends on MMC != n
-	default n
-	help
-	  If you say Y here, support will be added for 
-	  mmc suspend stress testing.
-
-config MMC_BKOPS_TEST
-	bool "MMC bkops stress test"
-	depends on MMC != n
-	default n
-	help
-	  If you say Y here, support will be added for 
-	  mmc bkops stress testing.
+config MMC_CMD5TEST
+       bool "MMC cmd5 test"
+       depends on MMC != n
+       default n
+       help
+       If you say Y here, support will be added for cmd5 stress testing.
 
 if MMC
 

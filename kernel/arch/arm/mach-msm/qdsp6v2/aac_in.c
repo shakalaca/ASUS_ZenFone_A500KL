@@ -50,7 +50,7 @@ static long aac_in_ioctl(struct file *file,
 		enc_cfg = audio->enc_cfg;
 		aac_config = audio->codec_cfg;
 		/* ENCODE CFG (after new set of API's are published )bharath*/
-		pr_err("%s:session id %d: default buf alloc[%d]\n", __func__,
+		pr_debug("%s:session id %d: default buf alloc[%d]\n", __func__,
 				audio->ac->session, audio->buf_alloc);
 		if (audio->enabled == 1) {
 			pr_info("%s:AUDIO_START already over\n", __func__);
@@ -67,7 +67,7 @@ static long aac_in_ioctl(struct file *file,
 			}
 		} else {
 			if(audio->feedback == NON_TUNNEL_MODE){
-				pr_err("%s: starting in non_tunnel mode",__func__);
+				pr_debug("%s: starting in non_tunnel mode",__func__);
 				rc = q6asm_open_read_write(audio->ac, FORMAT_MPEG4_AAC,
 						FORMAT_LINEAR_PCM);
 				if (rc < 0) {
@@ -76,7 +76,7 @@ static long aac_in_ioctl(struct file *file,
 				}
 			}
 			if(audio->feedback == TUNNEL_MODE){
-				pr_err("%s: starting in tunnel mode",__func__);
+				pr_debug("%s: starting in tunnel mode",__func__);
 				rc = q6asm_open_read(audio->ac,FORMAT_MPEG4_AAC);
 
 				if (rc < 0) {
@@ -87,7 +87,7 @@ static long aac_in_ioctl(struct file *file,
 		audio->stopped = 0;
 		}
 
-		pr_err("%s:sbr_ps_flag = %d, sbr_flag = %d\n", __func__,
+		pr_debug("%s:sbr_ps_flag = %d, sbr_flag = %d\n", __func__,
 			aac_config->sbr_ps_on_flag, aac_config->sbr_on_flag);
 		if (aac_config->sbr_ps_on_flag)
 			aac_mode = AAC_ENC_MODE_EAAC_P;
@@ -129,12 +129,12 @@ static long aac_in_ioctl(struct file *file,
 		}
 		while (cnt++ < audio->str_cfg.buffer_count)
 			q6asm_read(audio->ac);
-		pr_err("%s:session id %d: AUDIO_START success enable[%d]\n",
+		pr_debug("%s:session id %d: AUDIO_START success enable[%d]\n",
 				__func__, audio->ac->session, audio->enabled);
 		break;
 	}
 	case AUDIO_STOP: {
-		pr_err("%s:session id %d: Rxed AUDIO_STOP\n", __func__,
+		pr_debug("%s:session id %d: Rxed AUDIO_STOP\n", __func__,
 				audio->ac->session);
 		rc = audio_in_disable(audio);
 		if (rc  < 0) {
@@ -158,21 +158,9 @@ static long aac_in_ioctl(struct file *file,
 		/* ADTS(-1) to ADTS(0x00), RAW(0x00) to RAW(0x03) */
 		cfg.stream_format = ((enc_cfg->stream_format == \
 			0x00) ? AUDIO_AAC_FORMAT_ADTS : AUDIO_AAC_FORMAT_RAW);
-
-		switch (enc_cfg->stream_format) {
-		case 0x00:
-			cfg.stream_format = AUDIO_AAC_FORMAT_ADTS;
-			break;
-		case 0x01:
-			cfg.stream_format = AUDIO_AAC_FORMAT_LOAS;
-			break;
-		case 0x02:
-			cfg.stream_format = AUDIO_AAC_FORMAT_ADIF;
-			break;
-		default:
-		case 0x03:
-			cfg.stream_format = AUDIO_AAC_FORMAT_RAW;
-		}
+		pr_debug("%s:session id %d: Get-aac-cfg: format=%d sr=%d"
+			"bitrate=%d\n", __func__, audio->ac->session,
+			cfg.stream_format, cfg.sample_rate, cfg.bit_rate);
 		if (copy_to_user((void *)arg, &cfg, sizeof(cfg)))
 			rc = -EFAULT;
 		break;
@@ -180,32 +168,18 @@ static long aac_in_ioctl(struct file *file,
 	case AUDIO_SET_AAC_ENC_CONFIG: {
 		struct msm_audio_aac_enc_config cfg;
 		struct msm_audio_aac_enc_config *enc_cfg;
-		uint32_t min_bitrate, max_bitrate;
 		enc_cfg = audio->enc_cfg;
 		if (copy_from_user(&cfg, (void *)arg, sizeof(cfg))) {
 			rc = -EFAULT;
 			break;
 		}
-		pr_err("%s:session id %d: Set-aac-cfg: stream=%d\n", __func__,
+		pr_debug("%s:session id %d: Set-aac-cfg: stream=%d\n", __func__,
 					audio->ac->session, cfg.stream_format);
 
-		switch (cfg.stream_format) {
-		case AUDIO_AAC_FORMAT_ADTS:
-			enc_cfg->stream_format = 0x00;
-			break;
-		case AUDIO_AAC_FORMAT_LOAS:
-			enc_cfg->stream_format = 0x01;
-			break;
-		case AUDIO_AAC_FORMAT_ADIF:
-			enc_cfg->stream_format = 0x02;
-			break;
-		case AUDIO_AAC_FORMAT_RAW:
-			enc_cfg->stream_format = 0x03;
-			break;
-		default:
-			pr_err("%s:session id %d: unsupported AAC format %d\n",
-				__func__, audio->ac->session,
-				cfg.stream_format);
+		if ((cfg.stream_format != AUDIO_AAC_FORMAT_RAW)  &&
+			(cfg.stream_format != AAC_FORMAT_ADTS)) {
+			pr_err("%s:session id %d: unsupported AAC format\n",
+				__func__, audio->ac->session);
 			rc = -EINVAL;
 			break;
 		}
@@ -218,7 +192,7 @@ static long aac_in_ioctl(struct file *file,
 			rc = -EINVAL;
 			break;
 		}
-		if ((cfg.sample_rate < 8000) || (cfg.sample_rate > 48000)) {
+		if ((cfg.sample_rate < 8000) && (cfg.sample_rate > 48000)) {
 			pr_err("%s: ERROR in setting samplerate = %d\n",
 				__func__, cfg.sample_rate);
 			rc = -EINVAL;
@@ -227,16 +201,7 @@ static long aac_in_ioctl(struct file *file,
 		/* For aac-lc, min_bit_rate = min(24Kbps, 0.5*SR*num_chan);
 		max_bi_rate = min(192Kbps, 6*SR*num_chan);
 		min_sample_rate = 8000Hz, max_rate=48000 */
-		min_bitrate = ((cfg.sample_rate)*(cfg.channels))/2;
-		if (min_bitrate < 24000)
-			min_bitrate = 24000;
-		max_bitrate = 6*(cfg.sample_rate)*(cfg.channels);
-		if (max_bitrate > 192000)
-			max_bitrate = 192000;
-		if ((cfg.bit_rate < min_bitrate) ||
-					(cfg.bit_rate > max_bitrate)) {
-			pr_err("%s: bitrate permissible: max=%d, min=%d\n",
-				__func__, max_bitrate, min_bitrate);
+		if ((cfg.bit_rate < 4000) || (cfg.bit_rate > 192000)) {
 			pr_err("%s: ERROR in setting bitrate = %d\n",
 				__func__, cfg.bit_rate);
 			rc = -EINVAL;
@@ -245,7 +210,10 @@ static long aac_in_ioctl(struct file *file,
 		enc_cfg->sample_rate = cfg.sample_rate;
 		enc_cfg->channels = cfg.channels;
 		enc_cfg->bit_rate = cfg.bit_rate;
-		pr_err("%s:session id %d: Set-aac-cfg:SR= 0x%x ch=0x%x"
+		enc_cfg->stream_format =
+			((cfg.stream_format == AUDIO_AAC_FORMAT_RAW) ? \
+								0x03 : 0x00);
+		pr_debug("%s:session id %d: Set-aac-cfg:SR= 0x%x ch=0x%x"
 			"bitrate=0x%x, format(adts/raw) = %d\n",
 			__func__, audio->ac->session, enc_cfg->sample_rate,
 			enc_cfg->channels, enc_cfg->bit_rate,
@@ -272,7 +240,7 @@ static long aac_in_ioctl(struct file *file,
 			rc = -EFAULT;
 			break;
 		}
-		pr_err("%s:session id %d: AUDIO_SET_AAC_CONFIG: sbr_flag = %d"
+		pr_debug("%s:session id %d: AUDIO_SET_AAC_CONFIG: sbr_flag = %d"
 				 " sbr_ps_flag = %d\n", __func__,
 				 audio->ac->session, aac_cfg.sbr_on_flag,
 				 aac_cfg.sbr_ps_on_flag);

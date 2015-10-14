@@ -462,10 +462,11 @@ ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	struct timespec now;
 	ssize_t ret = 0;
 	//ASUSDEBUG + jeffery_hu@asus.com
+	getnstimeofday(&now);
 	if (asusdebug_enable==0x11223344)
 		return 0;
 	//ASUSDEBUG -
-	now = current_kernel_time();
+	//now = current_kernel_time();
 
 	header.pid = current->tgid;
 	header.tid = current->pid;

@@ -56,7 +56,7 @@ static bool IsInPadSetChg= false;
 #define ASUS_BAT_DEF_UPDATE_RATE  180	// the update rate is 3 minutes in default                 
 
 #define ASUS_BAT_PROC_FILE  "driver/asus_bat"
-#define ASUS_BAT_PROC_FILE_PERMISSION  0777
+#define ASUS_BAT_PROC_FILE_PERMISSION  0666
 
 #define ASUS_BAT_PROC_MAX_BUFF_SIZE  256
 
@@ -3378,7 +3378,7 @@ static int asus_bat_ec_event_handler(void)
 
 static int asus_battery_suspend(struct device *dev)
 {
-	printk("[BAT]suspend\r\n");
+	//printk("[BAT]suspend\r\n");
    
 	asus_onBatterySuspend();
 	return 0;

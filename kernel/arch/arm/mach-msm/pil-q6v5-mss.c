@@ -301,21 +301,12 @@ static int __devinit pil_mss_loadable_init(struct modem_data *drv,
 
 	mba = devm_kzalloc(&pdev->dev, sizeof(*mba), GFP_KERNEL);
 	if (!mba)
-	{
-		dev_err(&pdev->dev, "%s %d: ENOMEM \n",
-			__func__,__LINE__);//Allen_Lai++ debug modem probe fail
 		return -ENOMEM;
-	}
 	drv->mba = mba;
 
 	q6 = pil_q6v5_init(pdev);
 	if (IS_ERR(q6))
-	{
-		dev_err(&pdev->dev, "%s %d: PTR_ERR(q6->vreg):%ld \n",
-			__func__,__LINE__,PTR_ERR(q6));//Allen_Lai++ debug modem probe fail
 		return PTR_ERR(q6);
-	}
-
 	drv->q6 = q6;
 	drv->mba->xo = q6->xo;
 
@@ -331,22 +322,14 @@ static int __devinit pil_mss_loadable_init(struct modem_data *drv,
 						    "rmb_base");
 		q6->rmb_base = devm_request_and_ioremap(&pdev->dev, res);
 		if (!q6->rmb_base)
-		{
-			dev_err(&pdev->dev, "%s %d: ENOMEM \n",
-			__func__,__LINE__);//Allen_Lai++ debug modem probe fail
 			return -ENOMEM;
-		}
 		mba->rmb_base = q6->rmb_base;
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "restart_reg");
 	q6->restart_reg = devm_request_and_ioremap(&pdev->dev, res);
 	if (!q6->restart_reg)
-	{
-		dev_err(&pdev->dev, "%s %d: ENOMEM \n",
-			__func__,__LINE__);//Allen_Lai++ debug modem probe fail
 		return -ENOMEM;
-	}
 
 	q6->vreg = NULL;
 
@@ -354,11 +337,7 @@ static int __devinit pil_mss_loadable_init(struct modem_data *drv,
 	if (prop) {
 		q6->vreg = devm_regulator_get(&pdev->dev, "vdd_mss");
 		if (IS_ERR(q6->vreg))
-		{
-			dev_err(&pdev->dev, "%s %d: PTR_ERR(q6->vreg):%ld \n",
-			__func__,__LINE__,PTR_ERR(q6->vreg));//Allen_Lai++ debug modem probe fail
 			return PTR_ERR(q6->vreg);
-		}
 
 		ret = regulator_set_voltage(q6->vreg, VDD_MSS_UV,
 						MAX_VDD_MSS_UV);
@@ -374,11 +353,7 @@ static int __devinit pil_mss_loadable_init(struct modem_data *drv,
 
 	q6->vreg_mx = devm_regulator_get(&pdev->dev, "vdd_mx");
 	if (IS_ERR(q6->vreg_mx))
-	{
-		dev_err(&pdev->dev, "%s %d: PTR_ERR(q6->vreg_mx):%ld \n",
-		__func__,__LINE__,PTR_ERR(q6->vreg_mx));//Allen_Lai++ debug modem probe fail
 		return PTR_ERR(q6->vreg_mx);
-	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 		"cxrail_bhs_reg");
@@ -388,35 +363,19 @@ static int __devinit pil_mss_loadable_init(struct modem_data *drv,
 
 	q6->ahb_clk = devm_clk_get(&pdev->dev, "iface_clk");
 	if (IS_ERR(q6->ahb_clk))
-	{
-		dev_err(&pdev->dev, "%s %d: PTR_ERR(q6->ahb_clk):%ld \n",
-		__func__,__LINE__,PTR_ERR(q6->ahb_clk));//Allen_Lai++ debug modem probe fail
 		return PTR_ERR(q6->ahb_clk);
-	}
 
 	q6->axi_clk = devm_clk_get(&pdev->dev, "bus_clk");
 	if (IS_ERR(q6->axi_clk))
-	{
-		dev_err(&pdev->dev, "%s %d: PTR_ERR(q6->axi_clk):%ld \n",
-		__func__,__LINE__,PTR_ERR(q6->axi_clk));//Allen_Lai++ debug modem probe fail
 		return PTR_ERR(q6->axi_clk);
-	}
 
 	q6->rom_clk = devm_clk_get(&pdev->dev, "mem_clk");
 	if (IS_ERR(q6->rom_clk))
-	{
-		dev_err(&pdev->dev, "%s %d: PTR_ERR(q6->rom_clk):%ld \n",
-		__func__,__LINE__,PTR_ERR(q6->rom_clk));//Allen_Lai++ debug modem probe fail
 		return PTR_ERR(q6->rom_clk);
-	}
 
 	ret = pil_desc_init(q6_desc);
 	if (ret)
-	{
-		dev_err(&pdev->dev, "%s %d: ret:%d \n",
-		__func__,__LINE__,ret);//Allen_Lai++ debug modem probe fail
 		return ret;
-	}
 
 	mba_desc = &mba->desc;
 	mba_desc->name = "modem";
@@ -426,11 +385,7 @@ static int __devinit pil_mss_loadable_init(struct modem_data *drv,
 
 	ret = pil_desc_init(mba_desc);
 	if (ret)
-	{
-		dev_err(&pdev->dev, "%s %d: ret:%d \n",
-		__func__,__LINE__,ret);//Allen_Lai++ debug modem probe fail
 		goto err_mba_desc;
-	}
 
 	return 0;
 
@@ -445,24 +400,15 @@ static int __devinit pil_mss_driver_probe(struct platform_device *pdev)
 	struct modem_data *drv;
 	int ret, is_not_loadable;
 
-	dev_err(&pdev->dev, "%s %d: enter pil mss driver probe \n",
-	__func__,__LINE__);//Allen_Lai++ debug modem probe fail
 	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
-	{
-		dev_err(&pdev->dev, "%s %d: ENOMEM \n",
-			__func__,__LINE__);//Allen_Lai++ debug modem probe fail
 		return -ENOMEM;
-	}
-
 	platform_set_drvdata(pdev, drv);
 
 	is_not_loadable = of_property_read_bool(pdev->dev.of_node,
 							"qcom,is-not-loadable");
 	if (is_not_loadable) {
 		drv->subsys_desc.is_not_loadable = 1;
-		dev_err(&pdev->dev, "%s %d: is notloadable \n",
-		__func__,__LINE__);//Allen_Lai++ debug modem probe fail
 	} else {
 		ret = pil_mss_loadable_init(drv, pdev);
 		if (ret)

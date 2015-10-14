@@ -14,7 +14,7 @@
 	asus,register_reader {
 		compatible = "asus,register_reader";
 	};
-	
+
 	smp2pgpio_rdbg_2_in: qcom,smp2pgpio-rdbg-2-in {
 		compatible = "qcom,smp2pgpio";
 		qcom,entry-name = "rdbg";

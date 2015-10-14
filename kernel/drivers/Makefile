@@ -125,9 +125,9 @@ obj-y				+= platform/
 obj-y				+= ieee802154/
 #common clk code
 obj-y				+= clk/
-#eric_gong +++ "proximity/light sensor porting"
+#pansy_chen +++ "proximity/light sensor porting"
 obj-y				+= sensors/
-#eric_gong ---
+#pansy_chen ---
 obj-$(CONFIG_HWSPINLOCK)	+= hwspinlock/
 obj-$(CONFIG_NFC)		+= nfc/
 obj-$(CONFIG_IOMMU_SUPPORT)	+= iommu/
@@ -146,4 +146,4 @@ obj-$(CONFIG_MOBICORE_SUPPORT)  += gud/
 obj-$(CONFIG_CORESIGHT)		+= coresight/
 
 obj-$(CONFIG_BIF)		+= bif/
-#obj-$(CONFIG_SENSORS)		+= sensors/
+obj-$(CONFIG_SENSORS)		+= sensors/

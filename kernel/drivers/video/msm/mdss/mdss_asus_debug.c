@@ -26,35 +26,39 @@ int notify_panel_on_cmds_start(struct mdss_dsi_ctrl_pdata *ctrl)
 ssize_t lcd_unique_id_read_proc(char *page, char **start, off_t off, int count, 
             	int *eof, void *data)
 {
-	char *hsd_rbuffer_01;
-	char *hsd_rbuffer_02;
-	char *hsd_rbuffer_03;
-	char *hsd_rbuffer_04;
-	int panel_value;
-	hsd_rbuffer_01 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
-	hsd_rbuffer_02 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
-	hsd_rbuffer_03 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
-	hsd_rbuffer_04 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
-	if (IS_ERR_OR_NULL(ctrl_asus_global)) {
-		printk("[MDSSS][Hyde] keep  ctrl_asus_global: fail !!\n");
-		return -EINVAL;
+	int panel_value=0;
+	volatile int panel_type = -1;
+
+	panel_type = gpio_get_value(LCM_TYPE_ID);
+
+	if (panel_type)
+		{
+			char *hsd_rbuffer_01 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
+			char *hsd_rbuffer_02 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
+			char *hsd_rbuffer_03 = kmalloc(sizeof(ctrl_asus_global->rx_buf.len), GFP_KERNEL);
+			if (IS_ERR_OR_NULL(ctrl_asus_global)) {
+				printk("[MDSSS][Hyde] keep  ctrl_asus_global: fail !!\n");
+				return -EINVAL;
+			}
+			mdss_dsi_panel_cmd_read(ctrl_asus_global,0xDA,0x00,NULL,hsd_rbuffer_01,0);
+			mdss_dsi_panel_cmd_read(ctrl_asus_global,0xDB,0x00,NULL,hsd_rbuffer_02,0);
+			mdss_dsi_panel_cmd_read(ctrl_asus_global,0xDC,0x0,NULL,hsd_rbuffer_03,0);
+
+			panel_value = sprintf(page, "%02x%02x%02x\n", *(hsd_rbuffer_01),*(hsd_rbuffer_02),*(hsd_rbuffer_03));
+			kfree(hsd_rbuffer_01);
+			kfree(hsd_rbuffer_02);
+			kfree(hsd_rbuffer_03);
+
+		}
+
+	else
+		{
+
+			u32 Tianma_da=0x01;
+			u32 Tianma_db=0x94;
+			u32 Tianma_dc=0x1A;
+			panel_value = sprintf(page, "%02x%02x%02x\n", Tianma_da,Tianma_db,Tianma_dc);
 	}
-	mdss_dsi_panel_cmd_read(ctrl_asus_global,0xDA,0x00,NULL,hsd_rbuffer_01,0);
-	msleep(2);
-	mdss_dsi_panel_cmd_read(ctrl_asus_global,0xDB,0x00,NULL,hsd_rbuffer_02,0);
-	msleep(2);
-	mdss_dsi_panel_cmd_read(ctrl_asus_global,0xDC,0x0,NULL,hsd_rbuffer_03,0);
-	msleep(2);
-	mdss_dsi_panel_cmd_read(ctrl_asus_global,0x0A,0x00,NULL,hsd_rbuffer_04,0);
-	printk("[Display][Hyde] reg: addr 0x0A = (0x%x)\n" ,*(hsd_rbuffer_04));
-	printk("[Display][Hyde] reg: addr 0xDA = (0x%x)\n" ,*(hsd_rbuffer_01));
-	printk("[Display][Hyde] reg: addr 0xDB = (0x%x)\n" ,*(hsd_rbuffer_02));
-	printk("[Display][Hyde] reg: addr 0xDC = (0x%x)\n" ,*(hsd_rbuffer_03));
-	panel_value = sprintf(page, "%02x%02x%02x\n", *(hsd_rbuffer_01),*(hsd_rbuffer_02),*(hsd_rbuffer_03));
-	kfree(hsd_rbuffer_01);
-	kfree(hsd_rbuffer_02);
-	kfree(hsd_rbuffer_03);
-	kfree(hsd_rbuffer_04);
 return panel_value;
 	
 }

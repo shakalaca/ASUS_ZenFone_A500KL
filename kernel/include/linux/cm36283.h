@@ -33,8 +33,8 @@
 
 
 enum cm36283_sensors {
-	PS_SENSOR=0,
-	ALS_SENSOR,
+    PS_SENSOR=0,
+    ALS_SENSOR,
 };
 
 /*struct cm36283_platform_data {
@@ -59,7 +59,7 @@ enum cm36283_sensors {
 /* IOCTLs for TEST tools */
 #define LS_IOC_MAGIC					0xf4
 #define READ_LIGHT_DATA_ON_OFF				_IOW(LS_IOC_MAGIC, 1, int)
-#define ATD_ASK_LIGHTDATA 				_IOW(LS_IOC_MAGIC, 6, int*) 
+#define ATD_ASK_LIGHTDATA 				_IOW(LS_IOC_MAGIC, 6, int*)
 #define IOCTL_ENABLE_CTRL 				_IOW(LS_IOC_MAGIC, 7, int)
 #define CM36283_ANDROID_OR_OMS				_IOW(LS_IOC_MAGIC, 8, int)
 
@@ -80,4 +80,3 @@ enum cm36283_sensors {
 #endif
 
 #endif
-

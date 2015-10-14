@@ -1,15 +1,17 @@
-menu "Sensors driver"
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
 
 config SENSORS_PROXM
-	tristate "PS ALS proxm_class support"
-	depends on I2C=y
-	help
-	  ASUS SENSORS folder
+    tristate "PS ALS proxm_class support"
+    depends on I2C=y
+    help
+      ASUS SENSORS folder
 
 config SENSORS_CM36283
-	tristate "PS ALS CM36283 support"
-	depends on I2C=y
-	help
-	  ASUS SENSORS folder
-
-endmenu
+    tristate "PS ALS CM36283 support"
+    depends on I2C=y
+    help
+      ASUS SENSORS folder

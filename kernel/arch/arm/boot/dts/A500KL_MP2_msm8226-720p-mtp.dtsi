@@ -10,8 +10,7 @@
  * GNU General Public License for more details.
  */
 
-// /include/ "msm8226-camera-sensor-mtp.dtsi"
-/include/ "A500KL_MP2_msm8226-camera-sensor-mtp.dtsi"
+///include/ "msm8226-camera-sensor-mtp.dtsi"
 
 &soc {
 	serial@f991f000 {
@@ -20,7 +19,7 @@
 
 //Freeman +++
 	i2c@f9927000 { /* BLSP1 QUP5 */
-		synaptics@20 {
+/*		synaptics@20 {
 			compatible = "synaptics,rmi4";
 			reg = <0x20>;
 			interrupt-parent = <&msmgpio>;
@@ -34,40 +33,49 @@
 			synaptics,power-down;
 			synaptics,disable-gpios;
 			synaptics,display-coords = <0 0 720 1280>;
+		};*/
+	};
+
+//ASUS_BSP +++ pansy_chen "[A500KL][Sensor][NA][Spec] porting 6-axis sensor and p/l sensor"
+    i2c@f9924000 { /* BLSP1 QUP2: I2C2 Sensors*/
+        kxtj2@0f {
+            compatible = "kionix,kxtj2";
+            reg = <0x0f>;
+            interrupt-parent = <&msmgpio>;
+            interrupts = <63 0x2>;
+            kxtj2,irq-gpio = <&msmgpio 63 0x00>;
+        };
+        akm09911@0C {
+            compatible = "akm,akm09911";
+            reg = <0x0C>;
+            vdd_ana-supply = <&pm8226_l19>;
+            vcc_i2c-supply = <&pm8226_lvs1>;
+        };
+        cm36283@60 {
+            compatible = "capella,cm36283";
+            reg = <0x60>;
+            interrupt-parent = <&msmgpio>;
+            interrupts = <65 0x2>;
+            vdd_ana-supply = <&pm8226_l19>;
+            vcc_i2c-supply = <&pm8226_lvs1>;
+            cm36283,irq-gpio = <&msmgpio 65 0x00>;
+        };
+    };
+//ASUS_BSP --- pansy_chen "[A500KL][Sensor][NA][Spec] porting 6-axis sensor and p/l sensor"
+
+	i2c@f9925000 { /* BLSP1 QUP3 */
+		nfc-nci@0e {
+			compatible = "qcom,nfc-nci";
+			reg = <0x0e>;
+			qcom,irq-gpio = <&msmgpio 21 0x00>;
+			qcom,dis-gpio = <&msmgpio 20 0x00>;
+			qcom,clk-src = "BBCLK2";
+			qcom,clk-en-gpio = <&msmgpio 0 0x00>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <21 0>;
+			qcom,clk-gpio = <&pm8226_gpios 3 0>;
 		};
 	};
-	i2c@f9924000 { /* BLSP1 QUP2: I2C2 Sensors*/
-		// ASUS_BSP +++ yan_sun "[A500KL][Sensor][NA][Spec] Porting gsensor kxtj2"
-		kxtj2@0f {
-			compatible = "kionix,kxtj2";
-			reg = <0x0f>;
-			interrupt-parent = <&msmgpio>;
-			interrupts = <63 0x2>;
-			kxtj2,irq-gpio = <&msmgpio 63 0x00>;
-		};
-		// ASUS_BSP --- yan_sun "[A500KL][Sensor][NA][Spec] Porting gsensor kxtj2"
-		//ASUS_BSP +++  eric_gong +++ "[A500KL]cm36283 porting"
-		cm36283@60 {
-			compatible = "capella,cm36283";
-			reg = <0x60>;
-			interrupt-parent = <&msmgpio>;
-			interrupts = <65 0x2>;
-			vdd_ana-supply = <&pm8226_l19>;
-			vcc_i2c-supply = <&pm8226_lvs1>;
-			cm36283,irq-gpio = <&msmgpio 65 0x00>;
-		};
-		//ASUS_BSP ---  eric_gong --- "[A500KL]cm36283 porting"
-		//ASUS_BSP +++ pansy_chen "[A500KL][Sensor][NA][Spec] Porting Ak09911 E-compass"
-		akm09911@0C {
-			compatible = "akm,akm09911";
-			reg = <0x0C>;
-			vdd_ana-supply = <&pm8226_l19>;
-			vcc_i2c-supply = <&pm8226_lvs1>;
-		};
-		//ASUS_BSP --- pansy_chen "[A500KL][Sensor][NA][Spec] Porting Ak09911 E-compass"
-    };
-
-
 	gpio_keys {
 		compatible = "gpio-keys";
 		input-name = "gpio-keys";
@@ -95,7 +103,7 @@
 			linux,code = <116>;
 			gpio-key,wakeup;
 			debounce-interval = <15>;
-        };
+		};
 	};
 
 	hall_sensor {
@@ -148,6 +156,7 @@
 
 		qcom,cdc-mclk-gpios = <&pm8226_gpios 1 0>;
 		qcom,cdc-vdd-spkr-gpios = <&pm8226_gpios 2 0>;
+		qcom,cdc-us-euro-gpios = <&msmgpio 69 0>;
 	};
 
 	sound-9302 {
@@ -165,6 +174,7 @@
 
 		qcom,cdc-mclk-gpios = <&pm8226_gpios 1 0>;
 		qcom,cdc-vdd-spkr-gpios = <&pm8226_gpios 2 0>;
+		qcom,cdc-us-euro-gpios = <&msmgpio 69 0>;
 	};
 };
 
@@ -339,6 +349,7 @@
 						  00 00 00 00 00
 						  00];
 				qcom,use-blink;
+				qcom,in-order-command-processing;
 			};
 		};
 
@@ -365,6 +376,7 @@
 						  00 00 00 00 00
 						  00];
 				qcom,use-blink;
+				qcom,in-order-command-processing;
 			};
 		};
 	};
@@ -497,6 +509,7 @@
 		qcom,fast-avg-setup = <0>;
 	};
 };
+
 /* ASUS_BSP frank_tao +++
 / {
 	mtp_batterydata: qcom,battery-data {
@@ -507,7 +520,8 @@
 		/include/ "batterydata-mtp-3000mah.dtsi"
 	};
 };
-ASUS_BSP frank_tao --- */
+ASUS_BSP frank_tao --- */ 
+
 &pm8226_bms {
 	status = "ok";
 	qcom,enable-fcc-learning;
@@ -517,14 +531,16 @@ ASUS_BSP frank_tao --- */
 	qcom,fcc-resolution = <10>;
 	/* ASUS_BSP frank_tao +++
 	qcom,battery-data = <&mtp_batterydata>;
-	ASUS_BSP frank_tao --- */
+	 ASUS_BSP frank_tao ---*/
 };
+
 /* ASUS_BSP frank_tao +++
 &pm8226_chg {
 	qcom,charging-disabled;
 	qcom,battery-data = <&mtp_batterydata>;
 };
 ASUS_BSP frank_tao --- */
+
 &slim_msm {
 	tapan_codec {
 		qcom,cdc-micbias1-ext-cap;

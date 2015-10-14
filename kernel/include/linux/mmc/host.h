@@ -197,6 +197,12 @@ struct mmc_hotplug {
 	void *handler_priv;
 };
 
+enum dev_state {
+	DEV_SUSPENDING = 1,
+	DEV_SUSPENDED,
+	DEV_RESUMED,
+};
+
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
@@ -395,25 +401,6 @@ struct mmc_host {
 	} embedded_sdio_data;
 #endif
 
-//ASUS_BSP +++ lei_guo "mmc suspend stress test"
-#ifdef CONFIG_MMC_SUSPENDTEST
-	bool suspendtest;
-	unsigned int suspendcnt;
-	unsigned int suspend_datasz;
-#endif
-//ASUS_BSP --- lei_guo "mmc suspend stress test"
-
-//ASUS_BSP +++ lei_guo "mmc bkops stress test"
-#ifdef CONFIG_MMC_BKOPS_TEST
-	bool bkopstest;
-	unsigned long bkops_start_time;
-	unsigned long bkops_cost_time;
-	unsigned int bkops_startcnt;
-	unsigned int bkops_stopcnt;
-	unsigned int bkops_datasz;
-#endif
-//ASUS_BSP --- lei_guo "mmc bkops stress test"
-
 #ifdef CONFIG_MMC_PERF_PROFILING
 	struct {
 
@@ -426,6 +413,12 @@ struct mmc_host {
 	bool perf_enable;
 #endif
 	unsigned int sd_status; //ASUS_BSP +++ Allen_Zhuang "sd status for ATD"
+//ASUS_BSP +++ Lei_Guo "cmd5 stress test"
+#ifdef CONFIG_MMC_CMD5TEST
+	bool cmd5test;
+	unsigned int sleepcnt;
+#endif
+//ASUS_BSP --- Lei_Guo "cmd5 stress test"
 	struct mmc_ios saved_ios;
 	struct {
 		unsigned long	busy_time_us;
@@ -438,9 +431,12 @@ struct mmc_host {
 		bool		enable;
 		bool		initialized;
 		bool		in_progress;
+		/* freq. transitions are not allowed in invalid state */
+		bool		invalid_state;
 		struct delayed_work work;
 		enum mmc_load	state;
 	} clk_scaling;
+	enum dev_state dev_status;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 

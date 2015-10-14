@@ -201,7 +201,7 @@ struct kionix_accel_platform_data g_accel_pdata = { 	5,
 													1,
 													1,
 													KIONIX_ACCEL_RES_12BIT,
-													KIONIX_ACCEL_G_2G,
+													KIONIX_ACCEL_G_4G,
 };
 // ASUS_BSP --- yan_sun "[A500KL][Sensor][NA][Spec] Porting gsensor kxtj2"
 
@@ -1743,7 +1743,7 @@ static int kionix_accel_suspend(struct i2c_client *client, pm_message_t mesg)
 	long remaining;	
 	struct kionix_accel_driver *acceld = i2c_get_clientdata(client);
 	
-	printk("%s: kionix_accel_suspend +++ \n", __func__);
+	//printk("%s: kionix_accel_suspend +++ \n", __func__);
 	
 	mutex_lock(&acceld->mutex_earlysuspend);
 
@@ -1768,7 +1768,7 @@ static int kionix_accel_suspend(struct i2c_client *client, pm_message_t mesg)
 
 	mutex_unlock(&acceld->mutex_earlysuspend);
 
-	printk("%s: kionix_accel_suspend --- \n", __func__);
+	//printk("%s: kionix_accel_suspend --- \n", __func__);
 	
 	return 0;
 }
@@ -1778,7 +1778,7 @@ static int kionix_accel_resume(struct i2c_client *client)
 	int err;	
 	struct kionix_accel_driver *acceld = i2c_get_clientdata(client);
 	
-	printk("%s: kionix_accel_resume +++ \n", __func__);
+	//printk("%s: kionix_accel_resume +++ \n", __func__);
 	
 	mutex_lock(&acceld->mutex_resume);
 	
@@ -1806,7 +1806,7 @@ static int kionix_accel_resume(struct i2c_client *client)
 exit:
 	mutex_unlock(&acceld->mutex_resume);
 	i2c_smbus_read_byte_data(acceld->client, ACCEL_GRP4_INT_REL);
-	printk("%s: kionix_accel_resume --- \n", __func__);
+	//printk("%s: kionix_accel_resume --- \n", __func__);
 	return 0;
 }
 // ASUS_BSP --- yan_sun "[A500KL][Sensor][NA][Spec] Porting gsensor kxtj2"
@@ -1975,9 +1975,9 @@ static int __devinit kionix_accel_probe(struct i2c_client *client,
 	accel_pdata = &g_accel_pdata;
 	client->irq = gpio_to_irq(g_acc_irq_gpio);
 	if(client->irq > 0)
-		printk("[kxtj2]: gpio to irq failed\n");
-	else
 		printk("client irq = %d\n",client->irq);
+	else
+		printk("[kxtj2]: gpio to irq failed\n");
 #endif
 // ASUS_BSP --- yan_sun "[A500KL][Sensor][NA][Spec] Porting gsensor kxtj2"
 

@@ -66,22 +66,82 @@ static const struct mmc_fixup mmc_fixups[] = {
 	MMC_FIXUP_EXT_CSD_REV(CID_NAME_ANY, CID_MANFID_HYNIX,
 			      0x014a, add_quirk, MMC_QUIRK_BROKEN_HPI, 5),
 
+	/* Disable HPI feature for Kingstone card */
+	MMC_FIXUP_EXT_CSD_REV("MMC16G", CID_MANFID_KINGSTON, CID_OEMID_ANY,
+			add_quirk, MMC_QUIRK_BROKEN_HPI, 5),
+
+	/*
+	 * Some Hynix cards exhibit data corruption over reboots if cache is
+	 * enabled. Disable cache for all versions until a class of cards that
+	 * show this behavior is identified.
+	 */
+	MMC_FIXUP("H8G2d", CID_MANFID_HYNIX, CID_OEMID_ANY, add_quirk_mmc,
+		  MMC_QUIRK_CACHE_DISABLE),
+
+	MMC_FIXUP("MMC16G", CID_MANFID_KINGSTON, CID_OEMID_ANY, add_quirk_mmc,
+		  MMC_QUIRK_CACHE_DISABLE),
+
 	END_FIXUP
 };
 
 //ASUS_BSP +++ lei_guo "emmc info for ATD"
+static struct {
+	u32 sec_cnt;
+	char *band_type;
+} emmc_stat_tbl[] = {
+	{ 0xe68000,  "8" },
+	{ 0x1cce000, "16" },
+	{ 0x1d9c000, "16" },
+	{ 0x1d74000, "16" },
+	{ 0x1d5c000, "16" },
+	{ 0x1d5a000, "16" },
+	{ 0x1cd0000, "16" },
+	{ 0x1de8000, "16" },
+	{ 0x39f4000, "32" },
+	{ 0x3a3e000, "32" },
+	{ 0x3b84000, "32" },
+	{ 0x3b70000, "32" },
+	{ 0x39a0000, "32" },
+	{ 0x3af4000, "32" },
+	{ 0x3a40000, "32" },
+	{ 0x3b9c000, "32" },
+	{ 0x7480000, "64" },
+	{ 0x766c000, "64" },
+};
+
+#define EMMC_STAT_TBL_MAX	(sizeof(emmc_stat_tbl)/sizeof(emmc_stat_tbl[0]))
+
+static char total_size[8] = {0};
+
 static char* asus_get_emmc_status(struct mmc_card *card)
 {
 	BUG_ON(!card);
 
 	return card->mmc_info;
 }
+
 static char* asus_get_emmc_total_size(struct mmc_card *card)
 {
-	BUG_ON(!card);
+	u32 i;
+	u32 ext_csd_sector_count;
 
-	return card->mmc_total_size;
+	ext_csd_sector_count = card->ext_csd.raw_sectors[0] << 0 |card->ext_csd.raw_sectors[1] << 8 | card->ext_csd.raw_sectors[2] << 16 |card->ext_csd.raw_sectors[3] << 24;
+	memset(total_size, 0, sizeof(total_size));
+
+	for (i = 0; i < EMMC_STAT_TBL_MAX; i++) {
+		if (ext_csd_sector_count == emmc_stat_tbl[i].sec_cnt) {
+			//add eMMC size
+			strcat(total_size, emmc_stat_tbl[i].band_type);
+			break;
+		}
+	}
+	
+	if(EMMC_STAT_TBL_MAX == i)
+		strcat(total_size, "8");//the size is 8G,if this emmc size is unknow
+
+	return total_size;
 }
+
 static int asus_get_emmc_prv(struct mmc_card *card)
 {
 	int prv;
@@ -320,7 +380,9 @@ static void mmc_select_card_type(struct mmc_card *card)
 		hs_max_dtr = MMC_HS400_MAX_DTR;
 
 	card->ext_csd.hs_max_dtr = hs_max_dtr;
+	pr_info("[eMMC] HS MAX DTR is set to %u",card->ext_csd.hs_max_dtr);
 	card->ext_csd.card_type = card_type;
+	pr_info("[eMMC] card type is set to %u",card->ext_csd.card_type);
 }
 
 /*
@@ -360,6 +422,14 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	/* fixup device after ext_csd revision field is updated */
 	mmc_fixup_device(card, mmc_fixups);
 
+	card->ext_csd.raw_fw_version[0] = ext_csd[254];
+	card->ext_csd.raw_fw_version[1] = ext_csd[255];
+	card->ext_csd.raw_fw_version[2] = ext_csd[256];
+	card->ext_csd.raw_fw_version[3] = ext_csd[257];
+	card->ext_csd.raw_fw_version[4] = ext_csd[258];
+	card->ext_csd.raw_fw_version[5] = ext_csd[259];
+	card->ext_csd.raw_fw_version[6] = ext_csd[260];
+	card->ext_csd.raw_fw_version[7] = ext_csd[261];
 	card->ext_csd.raw_sectors[0] = ext_csd[EXT_CSD_SEC_CNT + 0];
 	card->ext_csd.raw_sectors[1] = ext_csd[EXT_CSD_SEC_CNT + 1];
 	card->ext_csd.raw_sectors[2] = ext_csd[EXT_CSD_SEC_CNT + 2];
@@ -378,6 +448,8 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 	card->ext_csd.raw_card_type = ext_csd[EXT_CSD_CARD_TYPE];
 	mmc_select_card_type(card);
+
+	card->ext_csd.raw_drive_strength = ext_csd[EXT_CSD_DRIVE_STRENGTH];
 
 	card->ext_csd.raw_s_a_timeout = ext_csd[EXT_CSD_S_A_TIMEOUT];
 	card->ext_csd.raw_erase_timeout_mult =
@@ -415,6 +487,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 					EXT_CSD_PART_CONFIG_ACC_BOOT0 + idx,
 					"boot%d", idx, true,
 					MMC_BLK_DATA_AREA_BOOT);
+				pr_info("[eMMC] Add boot part, size = %u, idx = %i",part_size,idx);
 			}
 		}
 	}
@@ -444,6 +517,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 				ext_csd[EXT_CSD_HC_WP_GRP_SIZE];
 
 			card->ext_csd.enhanced_area_en = 1;
+			pr_info("[eMMC] enhanced area enabled");
 			/*
 			 * calculate the enhanced data area offset, in bytes
 			 */
@@ -461,6 +535,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			card->ext_csd.enhanced_area_size *=
 				(size_t)(hc_erase_grp_sz * hc_wp_grp_sz);
 			card->ext_csd.enhanced_area_size <<= 9;
+			pr_info("[eMMC] enhanced area size = %u",card->ext_csd.enhanced_area_size);
 		} else {
 			/*
 			 * If the enhanced area is not enabled, disable these
@@ -468,6 +543,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			 */
 			card->ext_csd.enhanced_area_offset = -EINVAL;
 			card->ext_csd.enhanced_area_size = -EINVAL;
+			pr_info("[eMMC] enhanced area is not enabled");
 		}
 
 		/*
@@ -524,22 +600,22 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	}
 
 	if (card->ext_csd.rev >= 5) {
-//ASUS_BSP +++ lei_guo "turn off BKOPS and HPI"
+//ASUS_BSP Lei_Guo +++ turn off BKOPS and HPI
 #if 0
-	/* check whether the eMMC card supports HPI */
-	if ((ext_csd[EXT_CSD_HPI_FEATURES] & 0x1) &&
-			!(card->quirks & MMC_QUIRK_BROKEN_HPI)) {
-		card->ext_csd.hpi = 1;
-		if (ext_csd[EXT_CSD_HPI_FEATURES] & 0x2)
-			card->ext_csd.hpi_cmd = MMC_STOP_TRANSMISSION;
-		else
-			card->ext_csd.hpi_cmd = MMC_SEND_STATUS;
-		/*
-		 * Indicate the maximum timeout to close
-		 * a command interrupted by HPI
-		 */
-		card->ext_csd.out_of_int_time =
-			ext_csd[EXT_CSD_OUT_OF_INTERRUPT_TIME] * 10;
+		/* check whether the eMMC card supports HPI */
+		if ((ext_csd[EXT_CSD_HPI_FEATURES] & 0x1) &&
+				!(card->quirks & MMC_QUIRK_BROKEN_HPI)) {
+			card->ext_csd.hpi = 1;
+			if (ext_csd[EXT_CSD_HPI_FEATURES] & 0x2)
+				card->ext_csd.hpi_cmd = MMC_STOP_TRANSMISSION;
+			else
+				card->ext_csd.hpi_cmd = MMC_SEND_STATUS;
+			/*
+			 * Indicate the maximum timeout to close
+			 * a command interrupted by HPI
+			 */
+			card->ext_csd.out_of_int_time =
+				ext_csd[EXT_CSD_OUT_OF_INTERRUPT_TIME] * 10;
 		}
 
 		/*
@@ -548,26 +624,36 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		 */
 		if ((ext_csd[EXT_CSD_BKOPS_SUPPORT] & 0x1) &&
 		    card->ext_csd.hpi) {
+			pr_info("[eMMC] BKOPS is support");
 			card->ext_csd.bkops = 1;
+			pr_info("[eMMC] BKOPS ext_csd.bkops = %u",card->ext_csd.bkops);
 			card->ext_csd.bkops_en = ext_csd[EXT_CSD_BKOPS_EN];
+			pr_info("[eMMC] BKOPS csd.bkops_en = %u",card->ext_csd.bkops_en);
+			
 			card->ext_csd.raw_bkops_status =
 				ext_csd[EXT_CSD_BKOPS_STATUS];
+			pr_info("[eMMC] BKOPS csd.bkops_status = %u",card->ext_csd.raw_bkops_status);
+			
 			if (!card->ext_csd.bkops_en &&
 				card->host->caps2 & MMC_CAP2_INIT_BKOPS) {
 				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 					EXT_CSD_BKOPS_EN, 1, 0);
+				pr_info("[eMMC] BKOPS mmc_switch err = %u",err);
 				if (err)
 					pr_warn("%s: Enabling BKOPS failed\n",
 						mmc_hostname(card->host));
-				else
+				else{
 					card->ext_csd.bkops_en = 1;
+					pr_info("[eMMC] BKOPS is turn on");
+				}
 			}
 		}
 
 		pr_info("%s: BKOPS_EN bit = %d\n",
 			mmc_hostname(card->host), card->ext_csd.bkops_en);
 #endif
-//ASUS_BSP --- lei_guo "turn off BKOPS and HPI"
+//ASUS_BSP Lei_Guo --- turn off BKOPS and HPI
+
 		card->ext_csd.rel_param = ext_csd[EXT_CSD_WR_REL_PARAM];
 		card->ext_csd.rst_n_function = ext_csd[EXT_CSD_RST_N_FUNCTION];
 
@@ -580,6 +666,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 				EXT_CSD_PART_CONFIG_ACC_RPMB,
 				"rpmb", 0, false,
 				MMC_BLK_DATA_AREA_RPMB);
+			pr_info("[eMMC] RPMB regions added, size = 128K");
 		}
 	}
 
@@ -598,7 +685,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		card->ext_csd.power_off_longtime = 10 *
 			ext_csd[EXT_CSD_POWER_OFF_LONG_TIME];
 
-//ASUS_BSP +++ lei_guo "disable CACHE"
+//ASUS_BSP Lei_Guo +++ turn off cache
 #if 0
 		card->ext_csd.cache_size =
 			ext_csd[EXT_CSD_CACHE_SIZE + 0] << 0 |
@@ -606,8 +693,8 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			ext_csd[EXT_CSD_CACHE_SIZE + 2] << 16 |
 			ext_csd[EXT_CSD_CACHE_SIZE + 3] << 24;
 #endif
-		card->ext_csd.cache_size = 0;
-//ASUS_BSP --- lei_guo "disable CACHE"
+//ASUS_BSP Lei_Guo --- turn off cache
+
 		if (ext_csd[EXT_CSD_DATA_SECTOR_SIZE] == 1)
 			card->ext_csd.data_sector_size = 4096;
 		else
@@ -622,16 +709,14 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			card->ext_csd.data_tag_unit_size = 0;
 		}
 
-//ASUS_BSP +++ lei_guo "disable packed"
+//ASUS_BSP Lei_Guo +++ turn off packed CMD
 #if 0
 		card->ext_csd.max_packed_writes =
 			ext_csd[EXT_CSD_MAX_PACKED_WRITES];
 		card->ext_csd.max_packed_reads =
 			ext_csd[EXT_CSD_MAX_PACKED_READS];
 #endif
-		card->ext_csd.max_packed_writes = 0;
-		card->ext_csd.max_packed_reads = 0;
-//ASUS_BSP --- lei_guo "disable packed"
+//ASUS_BSP Lei_Guo --- turn off packed CMD
 	}
 //ASUS_BSP +++ lei_guo "Sandisk's eMMC health status feature"
 /* Only for Sandisk's eMMC, and 0 means not supported */
@@ -738,14 +823,21 @@ MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 MMC_DEV_ATTR(enhanced_area_size, "%u\n", card->ext_csd.enhanced_area_size);
 MMC_DEV_ATTR(raw_rpmb_size_mult, "%#x\n", card->ext_csd.raw_rpmb_size_mult);
 MMC_DEV_ATTR(rel_sectors, "%#x\n", card->ext_csd.rel_sectors);
-
-//ASUS_BSP +++ lei_guo "emmc info for ATD"
+//ASUS_BSP +++ Lei_Guo "emmc info for ATD"
 MMC_DEV_ATTR(emmc_prv, "0x%x\n", asus_get_emmc_prv(card));
 MMC_DEV_ATTR(emmc_status, "%s\n", asus_get_emmc_status(card));
 MMC_DEV_ATTR(emmc_size, "0x%02x%02x%02x%02x\n", card->ext_csd.raw_sectors[3], card->ext_csd.raw_sectors[2],
 	card->ext_csd.raw_sectors[1], card->ext_csd.raw_sectors[0]);
 MMC_DEV_ATTR(emmc_total_size, "%s\n", asus_get_emmc_total_size(card));
-//ASUS_BSP --- lei_guo "emmc info for ATD"
+MMC_DEV_ATTR(emmc_fw_version, "0x%02x%02x%02x%02x%02x%02x%02x%02x\n", card->ext_csd.raw_fw_version[7],
+       card->ext_csd.raw_fw_version[6],
+       card->ext_csd.raw_fw_version[5],
+       card->ext_csd.raw_fw_version[4],
+       card->ext_csd.raw_fw_version[3],
+       card->ext_csd.raw_fw_version[2],
+       card->ext_csd.raw_fw_version[1],
+       card->ext_csd.raw_fw_version[0]);
+//ASUS_BSP --- Lei_Guo "emmc info for ATD"
 //ASUS_BSP +++ lei_guo "Sandisk's eMMC health status feature"
 MMC_DEV_ATTR(slc_health, "%d\n", card->ext_csd.slc_health);
 MMC_DEV_ATTR(mlc_lp_health, "%d\n", card->ext_csd.mlc_lp_health);
@@ -769,12 +861,13 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_enhanced_area_size.attr,
 	&dev_attr_raw_rpmb_size_mult.attr,
 	&dev_attr_rel_sectors.attr,
-//ASUS_BSP +++ lei_guo "emmc info for ATD"
+//ASUS_BSP +++ Lei_Guo "emmc info for ATD"
 	&dev_attr_emmc_prv.attr,
 	&dev_attr_emmc_status.attr,
 	&dev_attr_emmc_size.attr,
 	&dev_attr_emmc_total_size.attr,
-//ASUS_BSP --- lei_guo "emmc info for ATD"
+	&dev_attr_emmc_fw_version.attr,
+//ASUS_BSP --- Lei_Guo "emmc info for ATD"
 //ASUS_BSP +++ lei_guo "Sandisk's eMMC health status feature"
 	&dev_attr_slc_health.attr,
 	&dev_attr_mlc_lp_health.attr,
@@ -836,9 +929,7 @@ static int mmc_select_powerclass(struct mmc_card *card,
 				EXT_CSD_PWR_CL_52_195 :
 				EXT_CSD_PWR_CL_DDR_52_195;
 		else if (host->ios.clock <= 200000000)
-			index = (bus_width <= EXT_CSD_BUS_WIDTH_8) ?
-				EXT_CSD_PWR_CL_200_195 :
-				EXT_CSD_PWR_CL_DDR_200_195;
+			index = EXT_CSD_PWR_CL_200_195;
 		break;
 	case MMC_VDD_27_28:
 	case MMC_VDD_28_29:
@@ -856,9 +947,9 @@ static int mmc_select_powerclass(struct mmc_card *card,
 				EXT_CSD_PWR_CL_52_360 :
 				EXT_CSD_PWR_CL_DDR_52_360;
 		else if (host->ios.clock <= 200000000)
-			index = (bus_width <= EXT_CSD_BUS_WIDTH_8) ?
-				EXT_CSD_PWR_CL_200_360 :
-				EXT_CSD_PWR_CL_DDR_200_360;
+			index = (bus_width == EXT_CSD_DDR_BUS_WIDTH_8) ?
+				EXT_CSD_PWR_CL_DDR_200_360 :
+				EXT_CSD_PWR_CL_200_360;
 		break;
 	default:
 		pr_warning("%s: Voltage range not supported "
@@ -1339,8 +1430,7 @@ static int mmc_change_bus_speed(struct mmc_host *host, unsigned long *freq)
 		mmc_set_clock(host, (unsigned int) (*freq));
 	}
 
-	if ((mmc_card_hs400(card) || mmc_card_hs200(card))
-		&& card->host->ops->execute_tuning) {
+	if (mmc_card_hs200(card) && card->host->ops->execute_tuning) {
 		/*
 		 * We try to probe host driver for tuning for any
 		 * frequency, it is host driver responsibility to
@@ -1374,92 +1464,77 @@ static void mmc_set_info(struct mmc_card *card)
 		if ((card->ext_csd.sectors == 0xe90000))
 		{
 			offset += sprintf(card->mmc_info, "Sandisk8G-");
-			sprintf(card->mmc_total_size, "8");
 		}
 		/* Sandisk 16G */
 		if ((card->ext_csd.sectors == 0x1d5a000))
 		{
 			offset += sprintf(card->mmc_info, "Sandisk16G-");
-			sprintf(card->mmc_total_size, "16");
 		}
 		/* Sandisk 32G */
 		else if ((card->ext_csd.sectors == 0x3a3e000))
 		{
 			offset += sprintf(card->mmc_info, "Sandisk32G-");
-			sprintf(card->mmc_total_size, "32");
 		}
 		/* Sandisk 64G */
 		else if ((card->ext_csd.sectors == 0x747c000))
 		{
 			offset += sprintf(card->mmc_info, "Sandisk64G-");
-			sprintf(card->mmc_total_size, "64");
 		}
 		/* Sandisk 128G */
 		else if ((card->ext_csd.sectors == 0xe8f8000))
 		{
 			offset += sprintf(card->mmc_info, "Sandisk128G-");
-			sprintf(card->mmc_total_size, "128");
 		}
 	} else if (card->cid.manfid == 0x90) {
 		/* Hynix 4G */
 		if ((card->ext_csd.sectors == 0x748000) && !strncmp(card->cid.prod_name, "H4G1d", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix4G-");
-			sprintf(card->mmc_total_size, "4");
 		}
 		/* Hynix 8G */
 		else if ((card->ext_csd.sectors == 0xe74000) && !strncmp(card->cid.prod_name, "H8G2d", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix8G-");	
-			sprintf(card->mmc_total_size, "8");
 		}	
 		/* Hynix 16G */
 		else if ((card->ext_csd.sectors == 0x1d5c000) && !strncmp(card->cid.prod_name, "HAG2e", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix16G-");
-			sprintf(card->mmc_total_size, "16");
 		}
 		/* Hynix 32G */
 		else if ((card->ext_csd.sectors == 0x3a40000) && !strncmp(card->cid.prod_name, "HBG4e", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix32G-");
-			sprintf(card->mmc_total_size, "32");
 		}
 		/* Hynix 64G */
 		else if ((card->ext_csd.sectors == 0x7480000) && !strncmp(card->cid.prod_name, "HCG8e", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix64G-");
-			sprintf(card->mmc_total_size, "64");
 		}
 		/* Hynix 8G */
 		else if ((card->ext_csd.sectors == 0xe90000) && !strncmp(card->cid.prod_name, "H8G2d", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix8G-");
-			sprintf(card->mmc_total_size, "8");
 		}
 		/* Hynix 16G */
 		else if ((card->ext_csd.sectors == 0x1d5c000) && !strncmp(card->cid.prod_name, "HAG4d", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix16G-");
-			sprintf(card->mmc_total_size, "16");
 		}
 		/* Hynix 32G */
 		else if ((card->ext_csd.sectors == 0x3a40000) && !strncmp(card->cid.prod_name, "HBG8d", 5))
 		{
 			offset += sprintf(card->mmc_info, "Hynix32G-");
-			sprintf(card->mmc_total_size, "32");
 		}
 		/* Hynix 8G 5.0*/
 		else if (card->ext_csd.sectors == 0xe90000)
 		{
 			offset += sprintf(card->mmc_info, "Hynix8G-");
-			sprintf(card->mmc_total_size, "8");
 		}
 		/* Hynix 16G 5.0*/
 		else if (card->ext_csd.sectors == 0x1d5c000)
 		{
 			offset += sprintf(card->mmc_info, "Hynix16G-");
-			sprintf(card->mmc_total_size, "16");
 		}
 
 		is_hynix = true;
@@ -1468,24 +1543,20 @@ static void mmc_set_info(struct mmc_card *card)
 		if (card->ext_csd.sectors == 0x00E90000)
 		{
 			offset += sprintf(card->mmc_info, "Toshiba8G-");
-			sprintf(card->mmc_total_size, "8");
 		}
 		/* Toshiba 16G*/
 		else if (card->ext_csd.sectors == 0x01D5A000)
 		{
 			offset += sprintf(card->mmc_info, "Toshiba16G-");
-			sprintf(card->mmc_total_size, "16");
 		}
 		/* Toshiba 32G*/
 		else if ((card->ext_csd.sectors == 0x3a3e000))
 		{
 			offset += sprintf(card->mmc_info, "Toshiba32G-");
-			sprintf(card->mmc_total_size, "32");
 		}
 		else
 		{
 			offset += sprintf(card->mmc_info, "Toshiba-");
-			sprintf(card->mmc_total_size, "8");
 		}
 	}
 
@@ -1499,8 +1570,8 @@ static void mmc_set_info(struct mmc_card *card)
 	else if(card->ext_csd.rev == 0x7)
 		offset += sprintf(card->mmc_info + offset, "5.0");
 
-	pr_info("%s: manfid:0x%x, sectors:0x%x, prod_name:%s, mmc_info:%s mmc_total_size:%s\n",
-		mmc_hostname(card->host), card->cid.manfid, card->ext_csd.sectors, card->cid.prod_name, card->mmc_info, card->mmc_total_size);
+	pr_info("%s: manfid:0x%x, sectors:0x%x, prod_name:%s, mmc_info:%s \n",
+		mmc_hostname(card->host), card->cid.manfid, card->ext_csd.sectors, card->cid.prod_name, card->mmc_info);
 
 	return;
 }
@@ -1702,7 +1773,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 
 		if (card->ext_csd.sectors && (rocr & MMC_CARD_SECTOR_ADDR))
 			mmc_card_set_blockaddr(card);
-		pr_info("%s: enhanced_area_en: %d\n", mmc_hostname(card->host),
+		pr_info("[eMMC]%s: enhanced_area_en: %d\n", mmc_hostname(card->host),
 			card->ext_csd.enhanced_area_en);
 	}
 
@@ -1742,14 +1813,12 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 //ASUS_BSP +++ lei_guo "emmc info for ATD"
 	if (!oldcard) {
 		mmc_set_info(card);
-//		pr_info("%s:mmc info: %s\n", mmc_hostname(host), card->mmc_info);
+//		pr_info("[eMMC] %s:mmc info: %s\n", mmc_hostname(host), card->mmc_info);
 	}
 //ASUS_BSP --- lei_guo "emmc info for ATD"
-
-	if (!oldcard)
-		pr_info("%s:mmc caps: 0x%lx, mmc caps2: 0x%x\n",
-			mmc_hostname(host), host->caps, host->caps2);
-
+		if (!oldcard)
+			pr_info("[eMMC] %s:mmc caps: 0x%lx, mmc caps2: 0x%x\n",
+				mmc_hostname(host), host->caps, host->caps2);
 	/*
 	 * Ensure eMMC user default partition is enabled
 	 */
@@ -1805,8 +1874,10 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			pr_warning("%s: Enabling HPI failed\n",
 				   mmc_hostname(card->host));
 			err = 0;
-		} else
+		} else{
 			card->ext_csd.hpi_en = 1;
+			pr_info("[eMMC] set HPI enadble");
+		}
 	}
 
 	/*
@@ -1815,7 +1886,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	 * If HPI is not supported then cache shouldn't be enabled.
 	 */
 	if ((host->caps2 & MMC_CAP2_CACHE_CTRL) &&
-	    (card->ext_csd.cache_size > 0) && card->ext_csd.hpi_en) {
+	    (card->ext_csd.cache_size > 0) && card->ext_csd.hpi_en &&
+	    ((card->quirks & MMC_QUIRK_CACHE_DISABLE) == 0)) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 				EXT_CSD_CACHE_CTRL, 1,
 				card->ext_csd.generic_cmd6_time);
@@ -1833,6 +1905,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			err = 0;
 		} else {
 			card->ext_csd.cache_ctrl = 1;
+			pr_info("[eMMC] Cache is supported and turn on");
 		}
 	}
 
@@ -1853,6 +1926,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			err = 0;
 		} else {
 			card->ext_csd.packed_event_en = 1;
+			pr_info("[eMMC] packed event is supported and turn on");
 		}
 
 	}
@@ -1904,25 +1978,22 @@ err:
 	return err;
 }
 
+//ASUS_BSP +++ Lei_Guo turn off PON
 static int mmc_can_poweroff_notify(const struct mmc_card *card)
 {
-//ASUS_BSP +++ lei_guo "disable PON"
-#if 0
-	return card &&
-		mmc_card_mmc(card) &&
-		(card->ext_csd.power_off_notification == EXT_CSD_POWER_ON);
-#endif
+	//return card &&
+		//mmc_card_mmc(card) &&
+		//(card->ext_csd.power_off_notification == EXT_CSD_POWER_ON);
 	return 0;
-//ASUS_BSP --- lei_guo "disable PON"
 }
+//ASUS_BSP --- Lei_Guo turn off PON
 
 static int mmc_poweroff_notify(struct mmc_card *card, unsigned int notify_type)
 {
-//ASUS_BSP +++ lei_guo "disable PON"
-#if 0
 	unsigned int timeout = card->ext_csd.generic_cmd6_time;
 	int err;
 
+	pr_info("[eMMC] start mmc_poweroff_notify function");
 	/* Use EXT_CSD_POWER_OFF_SHORT as default notification type. */
 	if (notify_type == EXT_CSD_POWER_OFF_LONG)
 		timeout = card->ext_csd.power_off_longtime;
@@ -1938,9 +2009,6 @@ static int mmc_poweroff_notify(struct mmc_card *card, unsigned int notify_type)
 	card->ext_csd.power_off_notification = EXT_CSD_NO_POWER_NOTIFICATION;
 
 	return err;
-#endif
-	return 0;
-//ASUS_BSP --- lei_guo "disable PON"
 }
 
 int mmc_send_long_pon(struct mmc_card *card)
@@ -1968,11 +2036,12 @@ static void mmc_remove(struct mmc_host *host)
 	BUG_ON(!host->card);
 
 	unregister_reboot_notifier(&host->card->reboot_notify);
+
+	mmc_exit_clk_scaling(host);
 	mmc_remove_card(host->card);
 
 	mmc_claim_host(host);
 	host->card = NULL;
-	mmc_exit_clk_scaling(host);
 	mmc_release_host(host);
 }
 
@@ -2041,12 +2110,17 @@ static int mmc_suspend(struct mmc_host *host)
 
 	err = mmc_cache_ctrl(host, 0);
 	if (err)
+	{
+		ASUSEvtlog("[eMMC] mmc_suspend failed \n");
 		goto out;
+	}
 
-	if (mmc_card_can_sleep(host))
+	if (mmc_card_can_sleep(host)){
 		err = mmc_card_sleep(host);
-	else if (!mmc_host_is_spi(host))
+	}
+	else if (!mmc_host_is_spi(host)){
 		mmc_deselect_cards(host);
+	}
 	host->card->state &= ~(MMC_STATE_HIGHSPEED | MMC_STATE_HIGHSPEED_200);
 
 out:

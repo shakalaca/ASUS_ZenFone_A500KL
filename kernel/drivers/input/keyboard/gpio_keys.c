@@ -72,6 +72,7 @@ struct gpio_keys_drvdata {
 	void (*disable)(struct device *dev);
 	struct gpio_button_data data[3]; //ASUS BSP Freeman +++ change data[0]-> data[3]
 };
+
 //ASUSDEBUG + jeffery_hu@asus.com
 //for debug slow
 //#include "../../../sound/soc/codecs/wcd9310.h"
@@ -508,6 +509,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	//ASUS_BSP +++ [thomas]Send uevent to userspace
 	envp[0] = "top_event";
 	envp[1] = NULL;
+
 	if (bootupcount == 10 && 
 		(gpio_get_value_cansleep(volume_down_key) == 0) && 
 		(gpio_get_value_cansleep(volume_up_key) == 0) &&
@@ -562,6 +564,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		count = 0;
 	}
 //ASUSDEBUG -
+
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
@@ -575,6 +578,7 @@ static void gpio_keys_gpio_work_func(struct work_struct *work)
 {
 	struct gpio_button_data *bdata =
 		container_of(work, struct gpio_button_data, work);
+
 	//ASUSDEBUG + jeffery_hu@asus.com
     //added for slow log
     schedule_work(&__wait_for_two_keys_work);
@@ -1031,7 +1035,6 @@ static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 //ASUS_BSP +++ jojo_zhou "Fast boot mode"
 #ifdef CONFIG_FASTBOOT
 	struct gpio_keys_button *button = bdata->button;
-
 	//ignore all key code when in fastboot mode except power key
 	if(button->code ==KEY_POWER ){
 
@@ -1147,16 +1150,13 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 		irq = gpio_to_irq(button->gpio);
 		if (irq < 0) {
 			error = irq;
-			dev_err(dev,
-				"Unable to get irq number for GPIO %d, error %d\n",
-				button->gpio, error);
+			dev_err(dev,"Unable to get irq number for GPIO %d, error %d\n",button->gpio, error);
 			goto fail;
 		}
 		bdata->irq = irq;
 
 		INIT_WORK(&bdata->work, gpio_keys_gpio_work_func);
-		setup_timer(&bdata->timer,
-			    gpio_keys_gpio_timer, (unsigned long)bdata);
+		setup_timer(&bdata->timer,gpio_keys_gpio_timer, (unsigned long)bdata);
 
 		isr = gpio_keys_gpio_isr;
 		irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
@@ -1557,7 +1557,6 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
         input_set_capability(input, EV_KEY, POWER_KEY_TEST);
 #endif
 //ASUS BSP Freeman --- for SMMI test
-
 	return 0;
 
  fail3:
@@ -1633,7 +1632,7 @@ static int gpio_keys_suspend(struct device *dev)
 
 //ASUS BSP Freeman+++ fix Power key suspend/resume fail
 	g_keycheck_abort = 0;
-	printk("[GPIO_KEY] clear g_keycheck_abort = %d\n",g_keycheck_abort);
+	//ASUSEvtlog("[GPIO_KEY] clear g_keycheck_abort = %d\n",g_keycheck_abort);
 //ASUS BSP Freeman--- fix Power key suspend/resume fail
 
 	if (device_may_wakeup(dev)) {
@@ -1665,8 +1664,8 @@ static int gpio_keys_resume(struct device *dev)
 		if (bdata->button->wakeup && device_may_wakeup(dev))
 			disable_irq_wake(bdata->irq);
 
-		if (gpio_is_valid(bdata->button->gpio))
-			gpio_keys_gpio_report_event(bdata);
+		//if (gpio_is_valid(bdata->button->gpio))
+			//gpio_keys_gpio_report_event(bdata);
 	}
 
 //ASUS BSP Freeman +++ add volup/voldown function in phone call suspend
@@ -1688,16 +1687,16 @@ static int gpio_keys_suspend_noirq(struct device *dev)
 {
 	if (g_keycheck_abort)
 	{
-		printk("[GPIO_KEY] noirq_check: suspend_abort\n");
+		ASUSEvtlog("[GPIO_KEY] noirq_check: suspend_abort\n");
 		return -EBUSY;
 	}
-	printk("[GPIO_KEY] in %s\n",__func__);
+	//printk("[GPIO_KEY] in %s\n",__func__);
 	return 0;
 }
 
 static int gpio_keys_resume_noirq(struct device *dev)
 {
-	printk("[GPIO_KEY] in %s\n",__func__);
+	//printk("[GPIO_KEY] in %s\n",__func__);
 	return 0;
 }
 

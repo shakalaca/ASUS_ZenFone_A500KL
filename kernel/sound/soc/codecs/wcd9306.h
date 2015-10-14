@@ -20,9 +20,9 @@
 #include "wcd9xxx-resmgr.h"
 #include "wcd9xxx-common.h"
 
-// wendy4_Wang@asus.com
+// asus_bsp +++ tyree_liu@asus.com
 #include <linux/switch.h>
-// wendy4_Wang@asus.com
+// asus_bsp --- tyree_liu@asus.com
 
 #define TAPAN_NUM_REGISTERS 0x400
 #define TAPAN_MAX_REGISTER (TAPAN_NUM_REGISTERS-1)
@@ -48,7 +48,7 @@ enum tapan_pid_current {
 	TAPAN_PID_MIC_20_UA,
 };
 
-// wendy4_Wang@asus.com
+// asus_bsp +++ tyree_liu@asus.com
 #define TABLA_JACK_BUTTON_MASK (SND_JACK_BTN_0 | SND_JACK_BTN_1 | \
 			SND_JACK_BTN_2 | SND_JACK_BTN_3 | \
 			SND_JACK_BTN_4 | SND_JACK_BTN_5 | \
@@ -73,7 +73,7 @@ struct wcd9306_hs_struct {
 	int button_irq;
 	int jack_irq;
 };
-// wendy4_Wang@asus.com
+// asus_bsp --- tyree_liu@asus.com
 
 struct tapan_reg_mask_val {
 	u16	reg;
@@ -116,5 +116,5 @@ extern void tapan_event_register(
 	int (*machine_event_cb)(struct snd_soc_codec *codec,
 				 enum wcd9xxx_codec_event),
 	struct snd_soc_codec *codec);
-void apply_wcd9306_spk_gain(void);  //mei_huang@asus.com
+	void apply_wcd9306_spk_gain(void);  //tyree_liu@asus.com
 #endif

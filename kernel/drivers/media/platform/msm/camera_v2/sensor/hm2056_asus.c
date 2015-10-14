@@ -366,7 +366,7 @@ static int32_t hm2056_asus_platform_probe(struct platform_device *pdev)
 	match = of_match_device(hm2056_asus_dt_match, &pdev->dev);
 	rc = msm_sensor_platform_probe(pdev, match->data);
 	info = (struct msm_sensor_ctrl_t *)match->data;
-	gpio_camid= info->sensordata->gpio_conf->gpio_num_info->gpio_num[SENSOR_GPIO_CAM_CAMID];
+	gpio_camid= info->sensordata->power_info.gpio_conf->gpio_num_info->gpio_num[SENSOR_GPIO_CAM_CAMID];
 	value_camid = __gpio_get_value(gpio_camid);
 	pr_err("%s: gpio_camid is %d and value_camid is %d\n",__func__,gpio_camid,value_camid);
 	return rc;

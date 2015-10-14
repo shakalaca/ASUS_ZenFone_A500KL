@@ -1004,6 +1004,18 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			if (rmi4_data->hw_if->board_data->y_flip)
 				y = rmi4_data->sensor_max_y - y;
 
+//ASUS_BSP Freeman: change way to report key  ++++
+	if(y > 1310 && y < 1380)
+	{
+		if(x > 15 && x < 185)
+			input_report_key(rmi4_data->input_dev,KEY_BACK,1);
+		if(x > 260 && x < 470)
+			input_report_key(rmi4_data->input_dev,KEY_HOME,1);
+		if(x > 550 && x < 720)
+			input_report_key(rmi4_data->input_dev,KEY_MENU,1);
+	}
+//ASUS_BSP Freeman: change way to report key  ---
+
 			input_report_key(rmi4_data->input_dev,
 					BTN_TOUCH, 1);
 			input_report_key(rmi4_data->input_dev,
@@ -1022,16 +1034,8 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			input_mt_sync(rmi4_data->input_dev);
 #endif
 
-			dev_dbg(rmi4_data->pdev->dev.parent,
-					"%s: Finger %d:\n"
-					"status = 0x%02x\n"
-					"x = %d\n"
-					"y = %d\n"
-					"wx = %d\n"
-					"wy = %d\n",
-					__func__, finger,
-					finger_status,
-					x, y, wx, wy);
+			/*if(touch_count %1000 == 0)
+				printk("%s: Finger %d: status = 0x%02x,x = %d,y = %d,wx = %d,wy = %d\n",__func__, finger,finger_status,x, y, wx, wy);*/
 
 			touch_count++;
 		} else {
@@ -1069,6 +1073,13 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 				BTN_TOUCH, 0);
 		input_report_key(rmi4_data->input_dev,
 				BTN_TOOL_FINGER, 0);
+
+//ASUS_BSP Freeman: change way to report key ++++
+		input_report_key(rmi4_data->input_dev,KEY_BACK,0);
+		input_report_key(rmi4_data->input_dev,KEY_HOME,0);
+		input_report_key(rmi4_data->input_dev,KEY_MENU,0);
+//ASUS_BSP Freeman: change way to report key  ----
+
 #ifndef TYPE_B_PROTOCOL
 		input_mt_sync(rmi4_data->input_dev);
 #endif
@@ -1399,7 +1410,7 @@ static void synaptics_rmi4_set_intr_mask(struct synaptics_rmi4_fn *fhandler,
 }
 
 //ASUS_BSP Freeman: add for creating virtual_key_maps +++
-#define MAX_LEN		200
+/*#define MAX_LEN		200
 static ssize_t wTP_virtual_keys_register(struct kobject *kobj,
 		     struct kobj_attribute *attr, char *buf)
 {
@@ -1427,7 +1438,7 @@ static struct attribute_group virtual_key_properties_attr_group = {
 	.attrs = virtual_key_properties_attrs,
 };
 
-struct kobject *virtual_key_properties_kobj = NULL;
+struct kobject *virtual_key_properties_kobj = NULL;*/
 //ASUS_BSP Freeman: add for creating virtual_key_maps ---
 
 static int synaptics_rmi4_f01_init(struct synaptics_rmi4_data *rmi4_data,
@@ -2313,7 +2324,7 @@ static void synaptics_rmi4_set_params(struct synaptics_rmi4_data *rmi4_data)
 	input_set_abs_params(rmi4_data->input_dev,
 			ABS_MT_POSITION_Y, 0,
 			//rmi4_data->sensor_max_y, 0, 0);
-			1280, 0, 0);
+			1360, 0, 0);
 
 #ifdef REPORT_2D_W
 	input_set_abs_params(rmi4_data->input_dev,
@@ -3002,7 +3013,7 @@ static int __devinit synaptics_rmi4_probe(struct platform_device *pdev)
 	struct synaptics_rmi4_data *rmi4_data;
 	const struct synaptics_dsx_hw_interface *hw_if;
 	const struct synaptics_dsx_board_data *bdata;
-	int rc = 0;
+	//int rc = 0;
 #ifdef CONFIG_I2C_STRESS_TEST
 	struct i2c_client *client;
 #endif
@@ -3148,13 +3159,13 @@ static int __devinit synaptics_rmi4_probe(struct platform_device *pdev)
 	}
 
 //ASUS_BSP Freeman: add for creating virtual_key_maps +++
-	if(virtual_key_properties_kobj == NULL){
+/*	if(virtual_key_properties_kobj == NULL){
 		virtual_key_properties_kobj = kobject_create_and_add("board_properties", NULL);
 	if (virtual_key_properties_kobj)
 		rc = sysfs_create_group(virtual_key_properties_kobj, &virtual_key_properties_attr_group);
 	if (!virtual_key_properties_kobj || rc)
 		pr_err("[touch_synaptics] failed to create wTP virtual key map!\n");
-	}
+	}*/
 //ASUS_BSP Freeman: add for creating virtual_key_maps ---
 
 //ASUS BSP Freeman: /sys/class/switch/touch +++++
@@ -3401,10 +3412,14 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata && evdata->data && event == FB_EVENT_BLANK &&
 		rmi4_data){ // && rmi4_data->i2c_client) {
 		blank = evdata->data;
-		if (*blank == FB_BLANK_UNBLANK)
+		if (*blank == FB_BLANK_UNBLANK) {
+			ASUSEvtlog("[PM]request_suspend_state: (3->0)\n");
 			synaptics_rmi4_resume(&(rmi4_data->input_dev->dev));
-		else if (*blank == FB_BLANK_POWERDOWN)
+		}
+		else if (*blank == FB_BLANK_POWERDOWN) {
+			ASUSEvtlog("[PM]request_suspend_state: (0->3)\n");
 			synaptics_rmi4_suspend(&(rmi4_data->input_dev->dev));
+		}
 	}
 
 	return 0;

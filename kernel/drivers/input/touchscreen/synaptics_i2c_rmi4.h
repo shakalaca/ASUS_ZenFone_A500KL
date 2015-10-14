@@ -35,7 +35,6 @@
 #include <linux/earlysuspend.h>
 #endif
 #include <linux/debugfs.h>
-#include <linux/switch.h>
 
 #define PDT_PROPS (0x00EF)
 #define PDT_START (0x00E9)
@@ -257,7 +256,6 @@ struct synaptics_rmi4_data {
 			unsigned char *data, unsigned short length);
 	int (*irq_enable)(struct synaptics_rmi4_data *rmi4_data, bool enable);
 	int (*reset_device)(struct synaptics_rmi4_data *rmi4_data);
-	int (*reprobe_device)(struct synaptics_rmi4_data *rmi4_data);
 #ifdef CONFIG_FB
 	struct notifier_block fb_notif;
 #else
@@ -265,7 +263,6 @@ struct synaptics_rmi4_data {
 	struct early_suspend early_suspend;
 #endif
 #endif
-	bool reset_gpio_get;
 };
 
 enum exp_fn {
@@ -289,14 +286,6 @@ void synaptics_rmi4_new_function(enum exp_fn fn_type, bool insert,
 		void (*func_remove)(struct synaptics_rmi4_data *rmi4_data),
 		void (*func_attn)(struct synaptics_rmi4_data *rmi4_data,
 				unsigned char intr_mask));
-
-static inline ssize_t synaptics_rmi4_show_error(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	dev_warn(dev, "%s Attempted to read from write-only attribute %s\n",
-			__func__, attr->attr.name);
-	return -EPERM;
-}
 
 static inline ssize_t synaptics_rmi4_store_error(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)

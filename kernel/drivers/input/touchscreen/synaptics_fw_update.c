@@ -29,12 +29,10 @@
 #include <linux/input/synaptics_dsx.h>
 #include "synaptics_i2c_rmi4.h"
 
-#include <linux/gpio.h>
-
 #define SHOW_PROGRESS
 #define MAX_FIRMWARE_ID_LEN 10
 #define FORCE_UPDATE false
-//#define INSIDE_FIRMWARE_UPDATE
+#define INSIDE_FIRMWARE_UPDATE
 
 #define FW_IMAGE_OFFSET 0x100
 /* 0 to ignore flash block check to speed up flash time */
@@ -117,11 +115,7 @@ enum flash_update_mode {
 
 #define SLEEP_TIME_US 100
 
-static int p;
-
 static int fwu_wait_for_idle(int timeout_ms);
-
-static int need_reprobe = 0;
 
 struct image_header_data {
 	union {
@@ -358,7 +352,6 @@ static void parse_header(void)
 		(data->options_firmware_id == (1 << OPTION_BUILD_INFO));
 
 	if (img->is_contain_build_info) {
-		img->firmware_id = extract_uint(data->firmware_id);
 		img->package_id = (data->pkg_id_msb << 8) |
 				data->pkg_id_lsb;
 		img->package_revision_id = (data->pkg_id_rev_msb << 8) |
@@ -772,7 +765,6 @@ static enum flash_area fwu_go_nogo(void)
 			"%s: In flash prog mode\n",
 			__func__);
 		flash_area = UI_FIRMWARE;
-		need_reprobe = 1;
 		goto exit;
 	}
 
@@ -845,7 +837,7 @@ static enum flash_area fwu_go_nogo(void)
 
 	/* device config id */
 	retval = fwu->fn_ptr->read(fwu->rmi4_data,
-				0x0A,//fwu->f34_fd.ctrl_base_addr,
+				fwu->f34_fd.ctrl_base_addr,
 				config_id,
 				sizeof(config_id));
 	if (retval < 0) {
@@ -1005,7 +997,6 @@ static int fwu_write_blocks(unsigned char *block_ptr, unsigned short block_cnt,
 		return retval;
 	}
 
-	p = 0;
 	for (block_num = 0; block_num < block_cnt; block_num++) {
 #ifdef SHOW_PROGRESS
 		if (block_num % progress == 0)
@@ -1058,9 +1049,7 @@ static int fwu_write_blocks(unsigned char *block_ptr, unsigned short block_cnt,
 		}
 		#endif
 		block_ptr += fwu->block_size;
-		p = block_num * 100 /block_cnt;
 	}
-	p = 100;
 #ifdef SHOW_PROGRESS
 	dev_info(&i2c_client->dev,
 			"%s: update %s %3d / %3d\n",
@@ -1132,7 +1121,6 @@ static int fwu_enter_flash_prog(bool force)
 		dev_info(&fwu->rmi4_data->i2c_client->dev,
 				"%s: Already in flash prog mode\n",
 				__func__);
-		need_reprobe = 1;
 		return 0;
 	}
 
@@ -1571,17 +1559,14 @@ static int fwu_start_reflash(void)
 		}
 
 		dev_dbg(&fwu->rmi4_data->i2c_client->dev,
-				"%s: Firmware image size = %d\n",
+				"%s: Firmware image size = %zu\n",
 				__func__, fw_entry->size);
 
 		fwu->data_buffer = fw_entry->data;
 	}
 
 	parse_header();
-	if (fwu->ext_data_source)
-		flash_area = UI_FIRMWARE;
-	else
-		flash_area = fwu_go_nogo();
+	flash_area = fwu_go_nogo();
 
 	if (fwu->rmi4_data->sensor_sleep) {
 		dev_err(&fwu->rmi4_data->i2c_client->dev,
@@ -1637,7 +1622,6 @@ static int fwu_start_reflash(void)
 		dev_info(&fwu->rmi4_data->i2c_client->dev,
 				"%s: Device is in flash prog mode 0x%02X\n",
 				__func__, f01_device_status.status_code);
-		need_reprobe = 1;
 	}
 
 exit:
@@ -1674,12 +1658,6 @@ int synaptics_fw_updater(void)
 
 	synaptics_rmi4_update_debug_info();
 
-	if(need_reprobe == 1)
-	{
-		dev_info(&fwu->rmi4_data->i2c_client->dev,"Should do re-probe \n");
-		fwu->rmi4_data->reprobe_device(fwu->rmi4_data);
-	}
-
 	return retval;
 }
 EXPORT_SYMBOL(synaptics_fw_updater);
@@ -1692,7 +1670,7 @@ static ssize_t fwu_sysfs_show_image(struct file *data_file,
 
 	if (count < fwu->config_size) {
 		dev_err(&rmi4_data->i2c_client->dev,
-				"%s: Not enough space (%d bytes) in buffer\n",
+				"%s: Not enough space (%zu bytes) in buffer\n",
 				__func__, count);
 		return -EINVAL;
 	}
@@ -1927,11 +1905,19 @@ static ssize_t fwu_sysfs_config_area_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
-	unsigned long config_area;
+	unsigned short config_area;
+	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	retval = kstrtoul(buf, 10, &config_area);
+	retval = kstrtou16(buf, 10, &config_area);
 	if (retval)
 		return retval;
+
+	if (config_area < 0x00 || config_area > 0x03) {
+		dev_err(&rmi4_data->i2c_client->dev,
+			"%s: Incorrect value of config_area\n",
+			 __func__);
+		return -EINVAL;
+	}
 
 	fwu->config_area = config_area;
 
@@ -2006,11 +1992,11 @@ static ssize_t fwu_sysfs_config_id_show(struct device *dev,
 	unsigned char config_id[4];
 	/* device config id */
 	fwu->fn_ptr->read(fwu->rmi4_data,
-				0x0A,//fwu->f34_fd.ctrl_base_addr,
+				fwu->f34_fd.ctrl_base_addr,
 				config_id,
 				sizeof(config_id));
 
-	return snprintf(buf, PAGE_SIZE, "%02x%02x%02x%02x\n",
+	return snprintf(buf, PAGE_SIZE, "%d.%d.%d.%d\n",
 		config_id[0], config_id[1], config_id[2], config_id[3]);
 }
 
@@ -2071,54 +2057,30 @@ static struct bin_attribute dev_attr_data = {
 	.write = fwu_sysfs_store_image,
 };
 
-//Freeman +++
-static ssize_t fwu_sysfs_tp_id_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	/* read touch panel id */
-
-	return snprintf(buf, PAGE_SIZE, "%d%d\n",gpio_get_value(66),gpio_get_value(67));
-}
-
-static ssize_t fwu_sysfs_hw_id_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	/* read HW id */
-
-	return snprintf(buf, PAGE_SIZE, "%d\n",oem_hardware_id());
-}
-
-static ssize_t fwu_sysfs_progress_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n", p);
-}
-//Freeman ---
-
 static struct device_attribute attrs[] = {
 	__ATTR(fw_name, S_IRUGO | S_IWUSR | S_IWGRP,
 			fwu_sysfs_image_name_show,
 			fwu_sysfs_image_name_store),
 	__ATTR(force_update_fw, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_force_reflash_store),
 	__ATTR(update_fw, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_do_reflash_store),
 	__ATTR(writeconfig, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_write_config_store),
 	__ATTR(writelockdown, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_write_lockdown_store),
 	__ATTR(readconfig, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_read_config_store),
 	__ATTR(configarea, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_config_area_store),
 	__ATTR(imagesize, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			fwu_sysfs_image_size_store),
 	__ATTR(blocksize, S_IRUGO,
 			fwu_sysfs_block_size_show,
@@ -2144,24 +2106,13 @@ static struct device_attribute attrs[] = {
 	__ATTR(package_id, S_IRUGO,
 			fwu_sysfs_package_id_show,
 			synaptics_rmi4_store_error),
-//Freeman +++
-	__ATTR(tp_id, S_IRUGO,
-			fwu_sysfs_tp_id_show,
-			synaptics_rmi4_store_error),
-	__ATTR(hw_id, S_IRUGO,
-			fwu_sysfs_hw_id_show,
-			synaptics_rmi4_store_error),
-	__ATTR(progress, S_IRUGO,
-			fwu_sysfs_progress_show,
-			synaptics_rmi4_store_error),
-//Freeman ---
 };
 
 
-/*static void synaptics_rmi4_fwu_work(struct work_struct *work)
+static void synaptics_rmi4_fwu_work(struct work_struct *work)
 {
 	fwu_start_reflash();
-}*/
+}
 
 static int synaptics_rmi4_fwu_init(struct synaptics_rmi4_data *rmi4_data)
 {

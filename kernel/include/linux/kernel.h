@@ -22,7 +22,8 @@
 #include <linux/printk.h>
 #include <linux/dynamic_debug.h>
 #include <asm/byteorder.h>
-#include <linux/asusdebug.h> //ASUS_BSP +++ eric_gong@asus.com
+#include <linux/asusdebug.h>
+
 // +++ ASUS_BSP : add for miniporting
 typedef enum
 {
@@ -68,6 +69,7 @@ const DEVICE_HWID oem_hardware_id(void);
 const DEVICE_HW_PROJECT oem_hardware_project(void);
 extern DEVICE_HWID g_ASUS_hwID;
 extern int g_user_dbg_mode;//wendy4_wang@asus.com
+extern int g_user_klog_mode;//wendy4_wang@asus.com
 
 const HW_DDR_TYPE oem_hardware_ddr_type(void);
 const HW_DDR_SIZE oem_hardware_ddr_size(void);

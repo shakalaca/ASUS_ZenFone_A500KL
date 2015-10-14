@@ -97,6 +97,7 @@ struct mmc_ext_csd {
 	u8			raw_erased_mem_count;	/* 181 */
 	u8			raw_ext_csd_structure;	/* 194 */
 	u8			raw_card_type;		/* 196 */
+	u8			raw_drive_strength;	/* 197 */
 	u8			out_of_int_time;	/* 198 */
 	u8			raw_s_a_timeout;		/* 217 */
 	u8			raw_hc_erase_gap_size;	/* 221 */
@@ -108,6 +109,7 @@ struct mmc_ext_csd {
 	u8			raw_trim_mult;		/* 232 */
 	u8			raw_bkops_status;	/* 246 */
 	u8			raw_sectors[4];		/* 212 - 4 bytes */
+	u8          raw_fw_version[8];  /* 254 - 8 bytes */
 //ASUS_BSP +++ lei_guo "Sandisk's eMMC health status feature"
 //0: not supported, 1: 0%-10%, 2: 10%-20%, ..., 11: More than 100%
 	u8			slc_health;		/* 87 */
@@ -406,6 +408,7 @@ struct mmc_card {
  /* Skip data-timeout advertised by card */
 #define MMC_QUIRK_BROKEN_DATA_TIMEOUT	(1<<12)
 
+#define MMC_QUIRK_CACHE_DISABLE (1 << 14)       /* prevent cache enable */
 
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
@@ -444,22 +447,21 @@ struct mmc_card {
 
 	struct device_attribute rpm_attrib;
 	unsigned int		idle_timeout;
-//ASUS_BSP +++ lei_guo "emmc info for ATD"
-	bool has_hynix_dbgcmd;
-	char mmc_info[25];
-	char mmc_total_size[10];
-//ASUS_BSP --- lei_guo "emmc info for ATD"
-//ASUS_BSP +++ lei_guo "mmc suspend stress test"
-#ifdef CONFIG_MMC_SUSPENDTEST
-	unsigned int    sectors_changed;
-#endif
-//ASUS_BSP --- lei_guo "mmc suspend stress test"
-//ASUS_BSP +++ lei_guo "mmc cmd statistics"
-	struct mmc_cmd_stats *cmd_stats;
-//ASUS_BSP --- lei_guo "mmc cmd statistics"
 	struct notifier_block        reboot_notify;
 	bool issue_long_pon;
 	u8 *cached_ext_csd;
+//ASUS_BSP +++ lei_guo "emmc info for ATD"
+	bool has_hynix_dbgcmd;
+	char mmc_info[25];
+//ASUS_BSP --- lei_guo "emmc info for ATD"
+//ASUS_BSP +++ lei_guo "mmc cmd statistics"
+    struct mmc_cmd_stats *cmd_stats;
+//ASUS_BSP --- lei_guo "mmc cmd statistics"
+//ASUS_BSP +++ Lei_Guo "cmd5 stress test"
+#ifdef CONFIG_MMC_CMD5TEST
+	unsigned int    sectors_changed;
+#endif
+//ASUS_BSP --- Lei_Guo "cmd5 stress test"
 };
 
 /*
@@ -516,6 +518,7 @@ struct mmc_fixup {
 #define CID_MANFID_TOSHIBA	0x11
 #define CID_MANFID_MICRON	0x13
 #define CID_MANFID_SAMSUNG	0x15
+#define CID_MANFID_KINGSTON	0x70
 #define CID_MANFID_HYNIX	0x90
 
 #define END_FIXUP { 0 }
@@ -600,13 +603,7 @@ static inline void __maybe_unused remove_quirk(struct mmc_card *card, int data)
 #define mmc_card_ext_capacity(c) ((c)->state & MMC_CARD_SDXC)
 #define mmc_card_removed(c)	((c) && ((c)->state & MMC_CARD_REMOVED))
 #define mmc_card_doing_bkops(c)	((c)->state & MMC_STATE_DOING_BKOPS)
-//ASUS_BSP +++ lei_guo "mmc bkops stress test"
-#ifdef CONFIG_MMC_BKOPS_TEST
-#define mmc_card_need_bkops(c)	((c)->host->bkopstest)? 1: ((c)->state & MMC_STATE_NEED_BKOPS)
-#else
 #define mmc_card_need_bkops(c)	((c)->state & MMC_STATE_NEED_BKOPS)
-#endif
-//ASUS_BSP --- lei_guo "mmc bkops stress test"
 
 #define mmc_card_set_present(c)	((c)->state |= MMC_STATE_PRESENT)
 #define mmc_card_set_readonly(c) ((c)->state |= MMC_STATE_READONLY)

@@ -326,7 +326,7 @@ static struct of_device_id hall_sensor_of_match[] = {
 static int hall_sensor_suspend(struct device *dev)
 {
 	struct hall_sensor_dev *sensor_dev = dev_get_drvdata(dev);
-	printk("hall_sensor_suspend\n");
+	//printk("hall_sensor_suspend\n");
 	enable_irq_wake(gpio_to_irq(sensor_dev->datas->gpio));
 	return 0;
 }
@@ -334,7 +334,7 @@ static int hall_sensor_suspend(struct device *dev)
 static int hall_sensor_resume(struct device *dev)
 {
 	struct hall_sensor_dev *sensor_dev = dev_get_drvdata(dev);
-	printk("hall_sensor_resume\n");
+	//printk("hall_sensor_resume\n");
 	disable_irq_wake(gpio_to_irq(sensor_dev->datas->gpio));
 	return 0;
 }

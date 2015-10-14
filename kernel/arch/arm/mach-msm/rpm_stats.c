@@ -412,7 +412,7 @@ static int rpm_stats_suspend(struct device *dev)
 	data.subsystem_votes = msm_rpmstats_read_long_register_v2(reg, 0,
 		offsetof(struct msm_rpm_stats_data_v2, subsystem_votes));
 
-	printk("[RPM] Voting status: Client: 0x%x, Subsystem: 0x%0x\n",
+	ASUSEvtlog("[RPM] Voting status: Client: 0x%x, Subsystem: 0x%0x\n",
 		data.client_votes, data.subsystem_votes);
 
 	iounmap(reg);
@@ -462,18 +462,13 @@ static int rpm_stats_resume(struct device *dev)
 		actual_last_sleep = get_time_in_msec(data.accumulated);
 
 		if(0 == i) {
-			printk("[RPM] Resume: RPM Mode:%s\n\t count:%d\n time in last mode(msec):%llu\n"
-			"time since last mode(sec):%llu\n actual last sleep(msec):%llu\n"
+			ASUSEvtlog("[RPM] Resume: RPM Mode:%s\n\t count:%d\n"
 			"Client votes: 0x%x, Subsystem votes: 0x%x\n",
-			stat_type, data.count, time_in_last_mode,
-			time_since_last_mode, actual_last_sleep,
-			data.client_votes, data.subsystem_votes);
+			stat_type, data.count,data.client_votes, data.subsystem_votes);
 		}
 		else {
-			printk("[RPM] Resume: RPM Mode:%s\n\t count:%d\n time in last mode(msec):%llu\n"
-			"time since last mode(sec):%llu\n actual last sleep(msec):%llu\n",
-			stat_type, data.count, time_in_last_mode,
-			time_since_last_mode, actual_last_sleep);
+			ASUSEvtlog("[RPM] Resume: RPM Mode:%s\n\t count:%d\n",
+			stat_type, data.count);
 		}
 	}
 	iounmap(reg);

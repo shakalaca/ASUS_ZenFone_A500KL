@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2013, Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2014, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,6 +25,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/pm_runtime.h>
+#include <linux/suspend.h>
 #include <linux/of.h>
 #include <linux/dma-mapping.h>
 
@@ -41,6 +42,7 @@
 #include <linux/mfd/pm8xxx/pm8921-charger.h>
 #include <linux/mfd/pm8xxx/misc.h>
 #include <linux/mhl_8334.h>
+#include <linux/qpnp/qpnp-adc.h>
 
 #include <mach/scm.h>
 #include <mach/clk.h>
@@ -139,7 +141,7 @@ enum host_auto_sw {
 static int g_host_none_mode = 0;
 static int g_keep_power_on = 0;
 static int g_suspend_delay_work_run = 0;
-const char *usb_device_list[] = {"/Removable/USBdisk1", "/Removable/USBdisk2", "/Removable/SD", "/sys/class/net/eth0"};
+const char *usb_device_list[] = {"/Removable/USBdisk1", "/Removable/USBdisk2", "/Removable/SD", "/sys/class/net/eth0", "/sys/class/sound/card1"};
 static struct workqueue_struct *early_suspend_delay_wq;
 static struct delayed_work early_suspend_delay_work;
 static struct work_struct late_resume_work;
@@ -149,6 +151,10 @@ static struct wake_lock early_suspend_wlock;
 //ASUS_BSP+++ Eric5_Ou "add mutex to protect suspend/resume function"
 static struct mutex msm_otg_mutex;
 //ASUS_BSP--- Eric5_Ou "add mutex to protect suspend/resume function"
+
+//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+static struct mutex vbus_power_mutex;
+//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 
 //ASUS_BSP+++ Eric5_Ou "add otg 5v output debug file"
 static int g_otg_5v_output = 0;
@@ -891,8 +897,10 @@ static int msm_otg_link_clk_reset(struct msm_otg *motg, bool assert)
 			dev_dbg(motg->phy.dev, "block_reset DEASSERT\n");
 			ret = clk_reset(motg->core_clk, CLK_RESET_DEASSERT);
 			ndelay(200);
-			clk_prepare_enable(motg->core_clk);
-			clk_prepare_enable(motg->pclk);
+			ret = clk_prepare_enable(motg->core_clk);
+			WARN(ret, "USB core_clk enable failed\n");
+			ret = clk_prepare_enable(motg->pclk);
+			WARN(ret, "USB pclk enable failed\n");
 		}
 		if (ret)
 			dev_err(motg->phy.dev, "usb hs_clk deassert failed\n");
@@ -1636,8 +1644,10 @@ static int msm_otg_resume(struct msm_otg *motg)
 	}
 
 	if (motg->lpm_flags & CLOCKS_DOWN) {
-		clk_prepare_enable(motg->core_clk);
-		clk_prepare_enable(motg->pclk);
+		ret = clk_prepare_enable(motg->core_clk);
+		WARN(ret, "USB core_clk enable failed\n");
+		ret = clk_prepare_enable(motg->pclk);
+		WARN(ret, "USB pclk enable failed\n");
 		motg->lpm_flags &= ~CLOCKS_DOWN;
 	}
 
@@ -1862,6 +1872,16 @@ psy_error:
 	return -ENXIO;
 }
 #endif
+static void msm_otg_set_online_status(struct msm_otg *motg)
+{
+	if (!psy)
+		dev_dbg(motg->phy.dev, "no usb power supply registered\n");
+
+	/* Set power supply online status to false */
+	if (power_supply_set_online(psy, false))
+		dev_dbg(motg->phy.dev, "error setting power supply property\n");
+}
+
 static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 {
 	struct usb_gadget *g = motg->phy.otg->gadget;
@@ -1883,6 +1903,13 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 							motg->chg_type);
 #endif
 //ASUS_BSP--- "[USB][NA][Spec] Add ASUS charger mode support"
+	/*
+	 * This condition will be true when usb cable is disconnected
+	 * during bootup before charger detection mechanism starts.
+	 */
+	if (motg->online && motg->cur_power == 0  && mA == 0)
+		msm_otg_set_online_status(motg);
+
 	if (motg->cur_power == mA)
 		return;
 //ASUS_BSP+++ "[USB][NA][Spec] Add ASUS charger mode support"
@@ -2037,19 +2064,32 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 {
 	int ret;
 	static bool vbus_is_on;
-
+	//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+	mutex_lock(&vbus_power_mutex);
+	//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 	if (vbus_is_on == on)
+	{
+		//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+		mutex_unlock(&vbus_power_mutex);
+		//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 		return;
+	}
 
 	if (motg->pdata->vbus_power) {
 		ret = motg->pdata->vbus_power(on);
 		if (!ret)
 			vbus_is_on = on;
+		//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+		mutex_unlock(&vbus_power_mutex);
+		//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 		return;
 	}
 
 	if (!vbus_otg) {
 		pr_err("vbus_otg is NULL.");
+		//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+		mutex_unlock(&vbus_power_mutex);
+		//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 		return;
 	}
 
@@ -2068,6 +2108,9 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 		ret = regulator_enable(vbus_otg);
 		if (ret) {
 			pr_err("unable to enable vbus_otg\n");
+			//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+			mutex_unlock(&vbus_power_mutex);
+			//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 			return;
 		}
 		vbus_is_on = true;
@@ -2075,12 +2118,17 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 		ret = regulator_disable(vbus_otg);
 		if (ret) {
 			pr_err("unable to disable vbus_otg\n");
+			//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+			mutex_unlock(&vbus_power_mutex);
+			//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 			return;
 		}
 		msm_otg_notify_host_mode(motg, on);
 		vbus_is_on = false;
 	}
-
+	//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+	mutex_unlock(&vbus_power_mutex);
+	//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
 	printk("[vbus_otg] vbus power output is %s\n", vbus_is_on ? "enable" : "disable");
 }
 
@@ -2821,6 +2869,7 @@ static void asus_usb_detect_work(struct work_struct *w)
 	g_charger_mode = ASUS_CHG_SRC_USB;
 	asus_chg_set_chg_mode(ASUS_CHG_SRC_USB);
 	printk("[USB] set_chg_mode: USB\n");
+	ASUSEvtlog("[USB] set_chg_mode: USB\n");
 }
 static void asus_chg_detect_work(struct work_struct *w)
 {
@@ -2830,6 +2879,7 @@ static void asus_chg_detect_work(struct work_struct *w)
 			g_charger_mode = ASUS_CHG_SRC_UNKNOWN;
 			asus_chg_set_chg_mode(ASUS_CHG_SRC_UNKNOWN);
 			printk("[USB] set_chg_mode: UNKNOWN\n");
+			ASUSEvtlog("[USB] set_chg_mode: UNKNOWN\n");
 		}
 		else{
 			printk("[USB] asus_chg_detect_work: BSV is not set,need re-check.(%d,%d)\n",msm_otg_bsv,test_bit(B_SESS_VLD, &motg->inputs));
@@ -2962,6 +3012,11 @@ static void msm_chg_detect_work(struct work_struct *w)
 		 * Notify the charger type to power supply
 		 * owner as soon as we determine the charger.
 		 */
+		if (motg->chg_type == USB_DCP_CHARGER &&
+			motg->ext_chg_opened) {
+				init_completion(&motg->ext_chg_wait);
+				motg->ext_chg_active = DEFAULT;
+		}
 #ifndef CONFIG_BATTERY_ASUS
 		msm_otg_notify_chg_type(motg);
 #endif
@@ -2982,6 +3037,7 @@ static void msm_chg_detect_work(struct work_struct *w)
 		if(motg->chg_type != USB_SDP_CHARGER){
 			asus_chg_set_chg_mode(ASUS_CHG_SRC_DC);
 			printk("[USB] set_chg_mode: ASUS AC\n");
+			ASUSEvtlog("[USB] set_chg_mode: ASUS AC\n");
 		}
 		else{
 			if(g_usb_boot == MSM_OTG_USB_BOOT_IRQ){
@@ -3090,14 +3146,17 @@ static void msm_otg_wait_for_ext_chg_done(struct msm_otg *motg)
 	 * detection is completed.
 	 */
 
-	if (motg->ext_chg_active) {
+	if (motg->ext_chg_active == ACTIVE) {
 
+do_wait:
 		pr_debug("before msm_otg ext chg wait\n");
 
 		t = wait_for_completion_timeout(&motg->ext_chg_wait,
 				msecs_to_jiffies(3000));
 		if (!t)
 			pr_err("msm_otg ext chg wait timeout\n");
+		else if (motg->ext_chg_active == ACTIVE)
+			goto do_wait;
 		else
 			pr_debug("msm_otg ext chg wait done\n");
 	}
@@ -3122,6 +3181,10 @@ static void msm_otg_sm_work(struct work_struct *w)
 	bool work = 0, srp_reqd, dcp;
 
 	pm_runtime_resume(otg->phy->dev);
+	if (motg->pm_done) {
+		pm_runtime_get_sync(otg->phy->dev);
+		motg->pm_done = 0;
+	}
 	pr_debug("%s work\n", otg_state_string(otg->phy->state));
 	switch (otg->phy->state) {
 	case OTG_STATE_UNDEFINED:
@@ -3188,11 +3251,6 @@ static void msm_otg_sm_work(struct work_struct *w)
 				case USB_DCP_CHARGER:
 					/* Enable VDP_SRC */
 					ulpi_write(otg->phy, 0x2, 0x85);
-					if (motg->ext_chg_opened) {
-						init_completion(
-							&motg->ext_chg_wait);
-						motg->ext_chg_active = true;
-					}
 					/* fall through */
 				case USB_PROPRIETARY_CHARGER:
 					msm_otg_notify_charger(motg,
@@ -3274,25 +3332,28 @@ static void msm_otg_sm_work(struct work_struct *w)
 			g_charger_mode = ASUS_CHG_SRC_NONE;
 			asus_chg_set_chg_mode(ASUS_CHG_SRC_NONE);
 			printk("[USB] set_chg_mode: None\n");
+			ASUSEvtlog("[USB] set_chg_mode: None\n");
 #endif
 //ASUS_BSP--- "[USB][NA][Spec] Add ASUS charger mode support"
 			motg->chg_state = USB_CHG_STATE_UNDEFINED;
 			motg->chg_type = USB_INVALID_CHARGER;
 			msm_otg_notify_charger(motg, 0);
-
 			//ASUS_BSP+++ Eric5_Ou "Add PM usage count debug log and protection mechanism"
 			if(otg_pm_count > 0) {
 				if (dcp) {
+					if (motg->ext_chg_active == DEFAULT)
+						motg->ext_chg_active = INACTIVE;
 					msm_otg_wait_for_ext_chg_done(motg);
 					/* Turn off VDP_SRC */
 					ulpi_write(otg->phy, 0x2, 0x86);
 				}
+				msm_chg_block_off(motg);
 				msm_otg_reset(otg->phy);
 			} else {
 				printk("[OTG-PM][%s] chg_work has canceled before, put usage_count:%d, otg_pm_count:%d\n",__func__, atomic_read(&otg->phy->dev->power.usage_count),otg_pm_count);
-			}
+ 			}
 			//ASUS_BSP--- Eric5_Ou "Add PM usage count debug log and protection mechanism"
-
+			
 			/*
 			 * There is a small window where ID interrupt
 			 * is not monitored during ID detection circuit
@@ -3324,6 +3385,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 			 */
 			pm_runtime_mark_last_busy(otg->phy->dev);
 			pm_runtime_autosuspend(otg->phy->dev);
+			motg->pm_done = 1;
 		}
 		break;
 	case OTG_STATE_B_SRP_INIT:
@@ -4053,10 +4115,12 @@ static void msm_otg_set_vbus_state(int online)
 		return;
 	}
 
-	if (atomic_read(&motg->pm_suspended))
+	if (atomic_read(&motg->pm_suspended)) {
 		motg->sm_work_pending = true;
-	else
+	} else if (!motg->sm_work_pending) {
+		/* process event only if previous one is not pending */
 		queue_work(system_nrt_wq, &motg->sm_work);
+	}
 }
 
 static void msm_pmic_id_status_w(struct work_struct *w)
@@ -4066,6 +4130,8 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 	//ASUS_BSP+++ Eric5_Ou "add phone mode usb OTG support"
 	/*
 	int work = 0;
+
+	dev_dbg(motg->phy.dev, "ID status_w\n");
 
 	if (msm_otg_read_pmic_id_state(motg)) {
 		if (!test_and_set_bit(ID, &motg->inputs)) {
@@ -4081,10 +4147,12 @@ static void msm_pmic_id_status_w(struct work_struct *w)
 	}
 
 	if (work && (motg->phy.state != OTG_STATE_UNDEFINED)) {
-		if (atomic_read(&motg->pm_suspended))
+		if (atomic_read(&motg->pm_suspended)) {
 			motg->sm_work_pending = true;
-		else
-			queue_work(system_nrt_wq, &motg->sm_work);
+		} else if (!motg->sm_work_pending) {*/
+			/* process event only if previous one is not pending */
+			/*queue_work(system_nrt_wq, &motg->sm_work);
+		}
 	}
 	*/
 
@@ -4110,6 +4178,34 @@ static irqreturn_t msm_pmic_id_irq(int irq, void *data)
 				msecs_to_jiffies(MSM_PMIC_ID_STATUS_DELAY));
 
 	return IRQ_HANDLED;
+}
+
+int msm_otg_pm_notify(struct notifier_block *notify_block,
+					unsigned long mode, void *unused)
+{
+	struct msm_otg *motg = container_of(
+		notify_block, struct msm_otg, pm_notify);
+
+	dev_dbg(motg->phy.dev, "OTG PM notify:%lx, sm_pending:%u\n", mode,
+					motg->sm_work_pending);
+
+	switch (mode) {
+	case PM_POST_SUSPEND:
+		/* OTG sm_work can be armed now */
+		atomic_set(&motg->pm_suspended, 0);
+
+		/* Handle any deferred wakeup events from USB during suspend */
+		if (motg->sm_work_pending) {
+			motg->sm_work_pending = false;
+			queue_work(system_nrt_wq, &motg->sm_work);
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
 }
 
 //ASUS_BSP+++ Eric5_Ou "add usb otg mode switch support"
@@ -4732,6 +4828,27 @@ static ssize_t msm_otg_bus_write(struct file *file, const char __user *ubuf,
 	return count;
 }
 #ifndef CONFIG_CHARGER_ASUS
+static int
+otg_get_prop_usbin_voltage_now(struct msm_otg *motg)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+
+	if (IS_ERR_OR_NULL(motg->vadc_dev)) {
+		motg->vadc_dev = qpnp_get_vadc(motg->phy.dev, "usbin");
+		if (IS_ERR(motg->vadc_dev))
+			return PTR_ERR(motg->vadc_dev);
+	}
+
+	rc = qpnp_vadc_read(motg->vadc_dev, USBIN, &results);
+	if (rc) {
+		pr_err("Unable to read usbin rc=%d\n", rc);
+		return 0;
+	} else {
+		return results.physical;
+	}
+}
+
 static int otg_power_get_property_usb(struct power_supply *psy,
 				  enum power_supply_property psp,
 				  union power_supply_propval *val)
@@ -4760,6 +4877,9 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = motg->usbin_health;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = otg_get_prop_usbin_voltage_now(motg);
 		break;
 	default:
 		return -EINVAL;
@@ -4831,6 +4951,7 @@ static enum power_supply_property otg_pm_power_props_usb[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_SCOPE,
 	POWER_SUPPLY_PROP_TYPE,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 #endif
 
@@ -5273,6 +5394,7 @@ msm_otg_ext_chg_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		pr_debug("%s: LPM block request %d\n", __func__, val);
 		if (val) { /* block LPM */
 			if (motg->chg_type == USB_DCP_CHARGER) {
+				motg->ext_chg_active = ACTIVE;
 				/*
 				 * If device is already suspended, resume it.
 				 * The PM usage counter is incremented in
@@ -5290,19 +5412,64 @@ msm_otg_ext_chg_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					//ASUS_BSP--- Eric5_Ou "Add PM usage count debug log and protection mechanism"
 				}
 			} else {
-				motg->ext_chg_active = false;
+				motg->ext_chg_active = INACTIVE;
 				complete(&motg->ext_chg_wait);
 				ret = -ENODEV;
 			}
 		} else {
-			motg->ext_chg_active = false;
+			motg->ext_chg_active = INACTIVE;
 			complete(&motg->ext_chg_wait);
-			pm_runtime_put(motg->phy.dev);
+			/*
+			 * If usb cable is disconnected and then userspace
+			 * calls ioctl to unblock low power mode, make sure
+			 * otg_sm work for usb disconnect is processed first
+			 * followed by decrementing the PM usage counters.
+			 */
+			flush_work(&motg->sm_work);
+			pm_runtime_put_noidle(motg->phy.dev);
+			motg->pm_done = 1;
 			//ASUS_BSP+++ Eric5_Ou "Add PM usage count debug log and protection mechanism"
 			otg_pm_count-= 1;
 			printk("[OTG-PM][%s] put usage_count:%d, otg_pm_count:%d\n",__func__, atomic_read(&motg->phy.dev->power.usage_count),otg_pm_count);
 			//ASUS_BSP--- Eric5_Ou "Add PM usage count debug log and protection mechanism"
+			pm_runtime_suspend(motg->phy.dev);
 		}
+		break;
+	case MSM_USB_EXT_CHG_VOLTAGE_INFO:
+		if (get_user(val, (int __user *)arg)) {
+			pr_err("%s: get_user failed\n\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+
+		if (val == USB_REQUEST_5V)
+			pr_debug("%s:voting 5V voltage request\n", __func__);
+		else if (val == USB_REQUEST_9V)
+			pr_debug("%s:voting 9V voltage request\n", __func__);
+		break;
+	case MSM_USB_EXT_CHG_RESULT:
+		if (get_user(val, (int __user *)arg)) {
+			pr_err("%s: get_user failed\n\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+
+		if (!val)
+			pr_debug("%s:voltage request successful\n", __func__);
+		else
+			pr_debug("%s:voltage request failed\n", __func__);
+		break;
+	case MSM_USB_EXT_CHG_TYPE:
+		if (get_user(val, (int __user *)arg)) {
+			pr_err("%s: get_user failed\n\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+
+		if (val)
+			pr_debug("%s:charger is external charger\n", __func__);
+		else
+			pr_debug("%s:charger is not ext charger\n", __func__);
 		break;
 	default:
 		ret = -EINVAL;
@@ -5829,6 +5996,11 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 	//ASUS_BSP+++ Eric5_Ou "add mutex to protect suspend/resume function"
 	mutex_init(&msm_otg_mutex);
 	//ASUS_BSP--- Eric5_Ou "add mutex to protect suspend/resume function"
+
+	//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+	mutex_init(&vbus_power_mutex);
+	//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
+
 	setup_timer(&motg->id_timer, msm_otg_id_timer_func,
 				(unsigned long) motg);
 	setup_timer(&motg->chg_check_timer, msm_otg_chg_check_timer_func,
@@ -5987,6 +6159,9 @@ static int __init msm_otg_probe(struct platform_device *pdev)
 	if (ret)
 		dev_dbg(&pdev->dev, "fail to setup cdev\n");
 
+	motg->pm_notify.notifier_call = msm_otg_pm_notify;
+	register_pm_notifier(&motg->pm_notify);
+
 	return 0;
 
 remove_phy:
@@ -6049,6 +6224,8 @@ static int __devexit msm_otg_remove(struct platform_device *pdev)
 	if (phy->otg->host || phy->otg->gadget)
 		return -EBUSY;
 
+	unregister_pm_notifier(&motg->pm_notify);
+
 	if (!motg->ext_chg_device) {
 		device_destroy(motg->ext_chg_class, motg->ext_chg_dev);
 		cdev_del(&motg->ext_chg_cdev);
@@ -6072,6 +6249,11 @@ static int __devexit msm_otg_remove(struct platform_device *pdev)
 	fb_unregister_client(&fb_notif);
 #endif
 	//ASUS_BSP--- Eric5_Ou "register early suspend notification for none mode switch"
+
+	//ASUS_BSP+++ show_wang "add mutex to protect msm_hsusb_vbus_power function"
+	mutex_destroy(&vbus_power_mutex);
+	//ASUS_BSP--- show_wang "add mutex to protect msm_hsusb_vbus_power function"
+
 	//ASUS_BSP+++ Eric5_Ou "add mutex to protect suspend/resume function"
 	mutex_destroy(&msm_otg_mutex);
 	//ASUS_BSP--- Eric5_Ou "add mutex to protect suspend/resume function"
@@ -6178,7 +6360,7 @@ static int msm_otg_runtime_idle(struct device *dev)
 	if (phy->state == OTG_STATE_UNDEFINED)
 		return -EAGAIN;
 
-	if (motg->ext_chg_active) {
+	if (motg->ext_chg_active == DEFAULT) {
 		dev_dbg(dev, "Deferring LPM\n");
 		/*
 		 * Charger detection may happen in user space.
@@ -6212,6 +6394,7 @@ static int msm_otg_runtime_resume(struct device *dev)
 
 	dev_dbg(dev, "OTG runtime resume\n");
 	pm_runtime_get_noresume(dev);
+	motg->pm_done = 0;
 	//ASUS_BSP+++ Eric5_Ou "Add PM usage count debug log and protection mechanism"
 	otg_pm_count+= 1;
 	printk("[OTG-PM][%s] get usage_count:%d, otg_pm_count:%d\n",__func__, atomic_read(&dev->power.usage_count),otg_pm_count);
@@ -6250,7 +6433,9 @@ static int msm_otg_pm_resume(struct device *dev)
 
 	dev_dbg(dev, "OTG PM resume\n");
 
-	atomic_set(&motg->pm_suspended, 0);
+	motg->pm_done = 0;
+	if (!motg->host_bus_suspend)
+		atomic_set(&motg->pm_suspended, 0);
 	if (motg->async_int || motg->sm_work_pending) {
 		pm_runtime_get_noresume(dev);
 		//ASUS_BSP+++ Eric5_Ou "Add PM usage count debug log and protection mechanism"
@@ -6264,7 +6449,12 @@ static int msm_otg_pm_resume(struct device *dev)
 		pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);
 
-		if (motg->sm_work_pending) {
+		/*
+		 * Defer any host mode disconnect events until
+		 * all devices are RESUMED
+		 *
+		 */
+		if (motg->sm_work_pending && !motg->host_bus_suspend) {
 			motg->sm_work_pending = false;
 			queue_work(system_nrt_wq, &motg->sm_work);
 		}

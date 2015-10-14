@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,14 +29,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/i2c.h>
 #include <sound/soc.h>
-
-// wendy4_wang@asus.com
-#include <linux/proc_fs.h>
-#include <linux/syscalls.h>
-#include <linux/fs.h>
-#include <linux/file.h>
-// wendy4_wang@asus.com
-
 
 #define WCD9XXX_REGISTER_START_OFFSET 0x800
 #define WCD9XXX_SLIM_RW_MAX_TRIES 3
@@ -496,31 +488,6 @@ exit:
 	return d;
 }
 
-// wendy4_wang@asus.com
-#define AUDIO_CODEC_PROC_FILE  "driver/audio_codec"
-static struct proc_dir_entry *audio_codec_proc_file;
-int codec_status=0;
-EXPORT_SYMBOL(codec_status);
-
-static ssize_t audio_codec_proc_read(char *page, char **start, off_t off, int count,
-                  int *eof, void *data)
-{
-	return sprintf(page, "%d\n",codec_status);
-}
-
-static void create_audio_codec_proc_file(void)
-{
-	pr_err("[Audio] create_audio_codec_proc_file\n");
-	audio_codec_proc_file = create_proc_entry(AUDIO_CODEC_PROC_FILE, 0644, NULL);
-	if (audio_codec_proc_file) {
-		audio_codec_proc_file->read_proc = audio_codec_proc_read;
-		pr_err("[Audio] create_audio_codec_proc_file sucess!\n");
-	} else {
-		pr_err("[Audio] create_audio_codec_proc_file failed!\n");
-	}
-}
-// wendy4_wang@asus.com
-
 static int wcd9xxx_num_irq_regs(const struct wcd9xxx *wcd9xxx)
 {
 	return (wcd9xxx->codec_type->num_irqs / 8) +
@@ -588,7 +555,6 @@ static const struct intr_data intr_tbl_v2[] = {
 	{WCD9XXX_IRQ_EAR_PA_OCPL_FAULT, false},
 	{WCD9XXX_IRQ_HPH_L_PA_STARTUP, false},
 	{WCD9XXX_IRQ_HPH_R_PA_STARTUP, false},
-	{WCD9320_IRQ_EAR_PA_STARTUP, false},
 	{WCD9XXX_IRQ_RESERVED_0, false},
 	{WCD9XXX_IRQ_RESERVED_1, false},
 	{WCD9XXX_IRQ_MAD_AUDIO, false},
@@ -638,7 +604,7 @@ static int wcd9xxx_device_init(struct wcd9xxx *wcd9xxx)
 				wcd9xxx->codec_type->num_irqs,
 				wcd9xxx_num_irq_regs(wcd9xxx),
 				wcd9xxx_reg_read, wcd9xxx_reg_write,
-				wcd9xxx_bulk_read);
+				wcd9xxx_bulk_read, wcd9xxx_bulk_write);
 
 	if (wcd9xxx_core_irq_init(&wcd9xxx->core_res))
 		goto err;
@@ -655,10 +621,6 @@ static int wcd9xxx_device_init(struct wcd9xxx *wcd9xxx)
 		dev_err(wcd9xxx->dev, "Device wakeup init failed: %d\n", ret);
 		goto err_irq;
 	}
-
-// wendy4_wang@asus.com
-	create_audio_codec_proc_file();
-// wendy4_wang@asus.com
 
 	return ret;
 err_irq:
@@ -1670,11 +1632,6 @@ static int wcd9xxx_slim_probe(struct slim_device *slim)
 	}
 #endif
 
-// wendy4_wang@asus.com
-	if(codec_status){
-		codec_status=1;
-	}
-// wendy4_wang@asus.com
 	return ret;
 
 err_slim_add:
@@ -1686,9 +1643,6 @@ err_supplies:
 err_codec:
 	kfree(wcd9xxx);
 err:
-// wendy4_wang@asus.com
-	codec_status=0;
-// wendy4_wang@asus.com
 	return ret;
 }
 static int wcd9xxx_slim_remove(struct slim_device *pdev)
@@ -1765,7 +1719,6 @@ static int wcd9xxx_slim_device_down(struct slim_device *sldev)
 {
 	struct wcd9xxx *wcd9xxx = slim_get_devicedata(sldev);
 
-	dev_info(wcd9xxx->dev, "%s: device down\n", __func__);
 	if (!wcd9xxx) {
 		pr_err("%s: wcd9xxx is NULL\n", __func__);
 		return -EINVAL;

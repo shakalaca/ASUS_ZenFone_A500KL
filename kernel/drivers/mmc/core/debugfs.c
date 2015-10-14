@@ -778,10 +778,10 @@ static ssize_t mmc_cmd_stats_read(struct file *filp, char __user *ubuf,
 	temp_buf = kmalloc(CMD_STATS_TEMP_BUF_SIZE, GFP_KERNEL);
 	if (!temp_buf)
 		goto exit;
-
-	spin_lock(&card->cmd_stats->lock);
-
+		
 	memset(ubuf, 0, cnt);
+	
+	spin_lock(&card->cmd_stats->lock);
 
 	snprintf(temp_buf, CMD_STATS_TEMP_BUF_SIZE, "%s: cmd statistics:\n",
 		mmc_hostname(card->host));

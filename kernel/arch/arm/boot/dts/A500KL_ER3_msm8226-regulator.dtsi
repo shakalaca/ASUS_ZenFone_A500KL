@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -401,7 +401,7 @@
 			regulator-min-microvolt = <2850000>;
 			regulator-max-microvolt = <2850000>;
 			qcom,init-voltage = <2850000>;
-			regulator-always-on; //ASUS_BSP +++ eric_gong "allow proximity/light sensor power always on"
+			regulator-always-on; 
 			status = "okay";
 		};
 	};
@@ -508,7 +508,7 @@
 	rpm-regulator-vsa1 {
 		status = "okay";
 		pm8226_lvs1: regulator-lvs1 {
-			regulator-always-on;       //ASUS_BSP +++ Eddie_lu "I2C porting"
+			regulator-always-on;       
 			status = "okay";
 		};
 	};
@@ -530,4 +530,8 @@
 
 &pm8226_chg_otg {
 	regulator-name = "8226_smbbp_otg";
+};
+
+&pm8226_chg_chgr {
+	regulator-name = "flash_wa";
 };

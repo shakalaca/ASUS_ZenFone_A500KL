@@ -353,6 +353,25 @@ __setup("androidboot.mode=", set_chg_mode);
 //+++ ASUS_BSP Jorney_dong: enable JB charger mode
 
 //ASUSDEBUG + jeffery_hu@asus.com Add for audio dbg mode
+int g_user_klog_mode = 0;
+EXPORT_SYMBOL(g_user_klog_mode);
+
+static int set_user_klog_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_klog_mode = 1;
+    }
+    else
+    {
+        g_user_klog_mode = 0;
+    }
+
+    printk("Kernel log mode = %d\n", g_user_klog_mode);
+    return 0;
+}
+__setup("klog=", set_user_klog_mode);
+
 int g_user_dbg_mode = 0;
 EXPORT_SYMBOL(g_user_dbg_mode);
 
@@ -372,6 +391,49 @@ static int set_user_dbg_mode(char *str)
 }
 __setup("dbg=", set_user_dbg_mode);
 //ASUSDEBUG -
+
+//add for UNLOCKED judgement ++++
+int unlocked_judgement = -1;
+EXPORT_SYMBOL(unlocked_judgement);
+
+static int set_unlocked_judgement(char *str)
+{
+    if ( strcmp("Y", str) == 0 )
+    {
+        unlocked_judgement = 1;
+    }
+    else
+    {
+        unlocked_judgement = 0;
+    }
+
+    printk("Kernel unlocked_judgement = %d\n", unlocked_judgement);
+    return 0;
+}
+__setup("UNLOCKED=", set_unlocked_judgement);
+//add for UNLOCKED judgement ----
+
+//add for SB judgement ++++
+int SB_judgement = -1;
+EXPORT_SYMBOL(SB_judgement);
+
+static int set_SB_judgement(char *str)
+{
+    if ( strcmp("Y", str) == 0 )
+    {
+        SB_judgement = 1;
+    }
+    else
+    {
+        SB_judgement = 0;
+    }
+
+    printk("Kernel SB_judgement = %d\n", SB_judgement);
+    return 0;
+}
+__setup("SB=", set_SB_judgement);
+//add for SB judgement ----
+
 /*
  * If set, this is an indication to the drivers that reset the underlying
  * device before going ahead with the initialization otherwise driver might

@@ -21,7 +21,6 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <linux/export.h>
-extern int g_user_dbg_mode;
 
 #include <linux/rtc.h>
 #include "rtmutex_common.h"
@@ -1180,7 +1179,7 @@ void save_phone_hang_log(void)
         deinitKernelEnv();
         
     }
-    if(g_phonehang_log)
+    if(g_phonehang_log && file_handle >0 && ret >0)
     {
         g_phonehang_log[0] = 0;   
         //iounmap(g_phonehang_log);
@@ -1355,6 +1354,7 @@ void get_last_shutdown_log(void)
 EXPORT_SYMBOL(get_last_shutdown_log);
 int first = 0;
 int watchdog_test = 0;
+int asus_asdf_set = 0;
 static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
     
@@ -1391,6 +1391,32 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
     {
         panic("panic test");
     }
+	else if(strncmp(messages, "get_asdf_log", strlen("get_asdf_log")) == 0)
+	{
+			extern int g_saving_rtb_log;
+			unsigned int *last_shutdown_log_addr;
+
+            last_shutdown_log_addr = (unsigned int *)((unsigned int)PRINTK_BUFFER + (unsigned int)PRINTK_BUFFER_SLOT_SIZE);
+            printk("[ASDF] last_shutdown_log_addr=0x%08x, value=0x%08x\n", (unsigned int)last_shutdown_log_addr, *last_shutdown_log_addr);
+
+            if(!asus_asdf_set)
+            {
+                asus_asdf_set = 1;
+				//save_phone_hang_log();
+                get_last_shutdown_log();
+                printk("[ASDF] get_last_shutdown_log: last_shutdown_log_addr=0x%08x, value=0x%08x\n", (unsigned int)last_shutdown_log_addr, *last_shutdown_log_addr);
+
+                if ( (*last_shutdown_log_addr)==(unsigned int)PRINTK_BUFFER_MAGIC )
+					save_rtb_log();
+
+				(*last_shutdown_log_addr)=(unsigned int)PRINTK_BUFFER_MAGIC;
+            }
+            g_saving_rtb_log = 0;
+	}
+    else if(strncmp(messages, "get_lastshutdown_log", 20) == 0)
+	{
+        save_phone_hang_log();
+	} 
     else if(strncmp(messages, "slowlog", 7) == 0)
     {
 		printk("start to gi chk\n");
@@ -1469,6 +1495,28 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
 	else if(strncmp(messages, "get_lastshutdown_log", 20) == 0)
 	{
         save_phone_hang_log();
+	}
+	else if(strncmp(messages, "get_asdf_log", strlen("get_asdf_log")) == 0)
+	{
+			extern int g_saving_rtb_log;
+			unsigned int *last_shutdown_log_addr;
+
+            last_shutdown_log_addr = (unsigned int *)((unsigned int)PRINTK_BUFFER + (unsigned int)PRINTK_BUFFER_SLOT_SIZE);
+            printk("[ASDF] last_shutdown_log_addr=0x%08x, value=0x%08x\n", (unsigned int)last_shutdown_log_addr, *last_shutdown_log_addr);
+
+            if(!asus_asdf_set)
+            {
+                asus_asdf_set = 1;
+				//save_phone_hang_log();
+                get_last_shutdown_log();
+                printk("[ASDF] get_last_shutdown_log: last_shutdown_log_addr=0x%08x, value=0x%08x\n", (unsigned int)last_shutdown_log_addr, *last_shutdown_log_addr);
+
+                if ( (*last_shutdown_log_addr)==(unsigned int)PRINTK_BUFFER_MAGIC )
+					save_rtb_log();
+
+				(*last_shutdown_log_addr)=(unsigned int)PRINTK_BUFFER_MAGIC;
+            }
+            g_saving_rtb_log = 0;
 	}
 	else if(strncmp(messages, "get_phonehang_log", 17) == 0)
 	{
@@ -1877,6 +1925,55 @@ static struct file_operations turnon_asusdebug_proc_ops = {
 };
 
 
+///////////////////////////////////////////////////////////////////////
+//
+// printk controller
+//
+///////////////////////////////////////////////////////////////////////
+static int klog_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%d\n", g_user_klog_mode);
+	return 0;
+}
+
+static int klog_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, klog_proc_show, NULL);
+}
+
+
+static ssize_t klog_proc_write(struct file *file, const char *buf,
+	size_t count, loff_t *pos)
+{
+	char lbuf[32];
+
+	if (count >= sizeof(lbuf))
+		count = sizeof(lbuf)-1;
+
+	if (copy_from_user(lbuf, buf, count))
+		return -EFAULT;
+	lbuf[count] = 0;
+
+	if(0 == strncmp(lbuf, "1", 1))
+	{
+		g_user_klog_mode = 1;
+	}
+	else
+	{
+		g_user_klog_mode = 0;
+	}
+
+	return count;
+}
+
+static const struct file_operations klog_proc_fops = {
+	.open		= klog_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+	.write		= klog_proc_write,
+};
+
 static int __init proc_asusdebug_init(void)
 {
 	
@@ -1884,6 +1981,7 @@ static int __init proc_asusdebug_init(void)
     proc_create("asusevtlog", S_IRWXUGO, NULL, &proc_asusevtlog_operations);
     proc_create("asusevtlog-switch", S_IRWXUGO, NULL, &proc_evtlogswitch_operations);
     proc_create("asusdebug-switch", S_IRWXUGO, NULL, &turnon_asusdebug_proc_ops);
+    proc_create_data("asusklog", S_IRWXUGO, NULL, &klog_proc_fops, NULL);
     PRINTK_BUFFER = (unsigned int)ioremap(PRINTK_BUFFER, PRINTK_BUFFER_SIZE);
     mutex_init(&mA);
     fake_mutex.owner = current;

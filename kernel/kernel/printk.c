@@ -43,9 +43,8 @@
 #include <linux/rculist.h>
 
 #include <asm/uaccess.h>
-//ASUSDEBUG + jeffery_hu@asus.com
-#include <linux/asus_global.h>
-//ASUSDEBUG -
+#include <linux/asus_global.h> //ASUSDEBUG+ jeffery_hu@asus.com
+
 #include <mach/msm_rtb.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
@@ -62,7 +61,7 @@ void asmlinkage __attribute__((weak)) early_printk(const char *fmt, ...)
 #ifdef        CONFIG_DEBUG_LL
 extern void printascii(char *);
 #endif
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL CONFIG_DEFAULT_MESSAGE_LOGLEVEL
 
@@ -163,7 +162,7 @@ static int saved_console_loglevel = -1;
 static char *g_printk_log_buf;
 
 int suspend_in_progress = 0;
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
 #ifdef CONFIG_KEXEC
 /*
  * This appends the listed symbols to /proc/vmcoreinfo
@@ -186,8 +185,8 @@ void log_buf_kexec_setup(void)
 static unsigned long __initdata new_log_buf_len;
 
 /* save requested log_buf_len since it's too early to process it */
+
 //ASUSDEBUG + jeffery_hu@asus.com
-//thomas_chu +++
 struct _asus_global asus_global =
 {
 		.asus_global_magic = ASUS_GLOBAL_MAGIC,
@@ -197,8 +196,8 @@ struct _asus_global asus_global =
 //		.kernel_version = ASUS_SW_VER,
 };
 
-//thomas_chu ---
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
+
 static int __init log_buf_len_setup(char *str)
 {
 	unsigned size = memparse(str, &str);
@@ -820,7 +819,7 @@ EXPORT_SYMBOL(debug_mask_setting);
 extern int entering_suspend;
 //extern int g_user_dbg_mode;
 extern unsigned int asusdebug_enable;
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
 asmlinkage int printk(const char *fmt, ...)
 {
 	va_list args;
@@ -828,19 +827,20 @@ asmlinkage int printk(const char *fmt, ...)
 //ASUSDEBUG + jeffery_hu@asus.com
 	unsigned char *p;
 #ifdef CONFIG_MSM_RTB
-	void *caller = NULL;
+	void *caller=NULL;
 #endif
 
 	if (asusdebug_enable==0x11223344)
 		return 0;
 
 // +++ ASUS_BSP : add for user build
-//#ifdef ASUS_SHIP_BUILD
-	//if ( g_user_dbg_mode==0 )
-		//return 0;
-//#endif
-// --- ASUS_BSP : add for user build	
-//ASUSDEBUG -
+#ifdef ASUS_SHIP_BUILD
+	if ( g_user_klog_mode==0 )
+		return 0;
+#endif
+// --- ASUS_BSP : add for user build
+//ASUSDEBUG - jeffery_hu@asus.com
+
 #ifdef CONFIG_MSM_RTB
 	caller = __builtin_return_address(0);
 
@@ -855,7 +855,7 @@ asmlinkage int printk(const char *fmt, ...)
 		return r;
 	}
 #endif
-#if 0//ASUSDEBUG  jeffery_hu@asus.com
+#if 0//ASUSDEBUG + jeffery_hu@asus.com
 	va_start(args, fmt);
 	r = vprintk(fmt, args);
 	va_end(args);
@@ -890,7 +890,7 @@ asmlinkage int printk(const char *fmt, ...)
     
 //20100930 jack_wong to add asus_debug mechanism -----
 #endif
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
 	return r;
 }
 
@@ -995,8 +995,8 @@ static void myrtc_time_to_tm(unsigned long time, struct rtc_time *tm)
 }
 //#endif
 // added for printk hh:mm:ss.ns -----------
-//ASUSDEBUG -
 int boot_after_60sec=0;
+//ASUSDEBUG - jeffery_hu@asus.com
 asmlinkage int vprintk(const char *fmt, va_list args)
 {
 	int printed_len = 0;
@@ -1048,7 +1048,7 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 #ifdef	CONFIG_DEBUG_LL
 	printascii(printk_buf);
 #endif
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
 	p = printk_buf;
 //ASUSDEBUG + jeffery_hu@asus.com
 // ASUS_BSP +++ : keep ASUS debug G0/G1 messages
@@ -1060,7 +1060,8 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 		p[2]='>';
 	}
 // ASUS_BSP ---
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
+
 	/* Read log level and handle special printk prefix */
 	plen = log_prefix(p, &current_log_level, &special);
 	if (plen) {
@@ -1103,14 +1104,11 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 				printed_len += 3;
 			}
 
-
+			//ASUSDEBUG + jeffery_hu@asus.com
             if (printk_time) 
-            //ASUSDEBUG + jeffery_hu@asus.com
             {
                 int tlen;
                 char tbuf[128], *tp;
-//#ifndef ASUS_SHIP_BUILD
-//                struct myworker *pworker = (struct myworker *) current->pworker;                
                 if(asus_rtc_set && !suspend_in_progress)
                 {
                     /* Add the current time stamp */
@@ -1127,73 +1125,24 @@ asmlinkage int vprintk(const char *fmt, va_list args)
                     ts.tv_sec -= sys_tz.tz_minuteswest * 60;
                     myrtc_time_to_tm(ts.tv_sec, &tm);
                     //20100930 jack_wong to add asus_debug mechanism +++++
-                    if(0)//pworker && pworker->current_work != NULL )
-                    {
-                        char fname[KSYM_SYMBOL_LEN] = {0};
-//                        sprint_symbol(fname, (unsigned long)pworker->current_work->func);
-
-                        if(fname[0] != 0)
-                            tlen = sprintf(tbuf, "[%02d:%02d:%02d.%06lu](CPU:%d-pid:%d:%s-%s) ",
-                                tm.tm_hour, tm.tm_min, tm.tm_sec,ts.tv_nsec/1000,
-                                this_cpu,
-                                current->pid, 
-                                current->comm, fname);
-                        else
-                            tlen = sprintf(tbuf, "[%02d:%02d:%02d.%06lu](CPU:%d-pid:%d:%s-noWorkName) ",
-                                            tm.tm_hour, tm.tm_min, tm.tm_sec,ts.tv_nsec/1000,
-                                            this_cpu,
-                                            current->pid, 
-                                            current->comm);
-                    }
-                    else
-                    {
                         tlen = sprintf(tbuf, "[%5lu.%06lu](CPU:%d-pid:%d:%s) [%02d:%02d:%02d.%06lu] ",
 								(unsigned long) t,      
 								nanosec_rem / 1000,                          
                                 this_cpu,
                                 current->pid, 
                                 current->comm,
-                                tm.tm_hour, tm.tm_min, tm.tm_sec,ts.tv_nsec/1000);                    
+                                tm.tm_hour, tm.tm_min, tm.tm_sec,ts.tv_nsec/1000);     
                          if (boot_after_60sec == 0 && t >= 60)
-                             boot_after_60sec = 1;
-                    }
+							boot_after_60sec = 1;
                 }
                 else
-//#endif
                 {
-					//ASUSDEBUG - jeffery_hu@asus.com
                     unsigned long long t;
                     unsigned long nanosec_rem;
 
                     t = cpu_clock(printk_cpu);
                     nanosec_rem = do_div(t, 1000000000);
-                    //ASUSDEBUG + jeffery_hu@asus.com
                 //20100930 jack_wong to add asus_debug mechanism +++++
-//#ifndef ASUS_SHIP_BUILD                    
-                    if(0)//pworker && pworker->current_work != NULL )
-                    {
-
-                        char fname[KSYM_SYMBOL_LEN] = {0};
-//                        sprint_symbol(fname, (unsigned long)pworker->current_work->func);
-
-                        if(fname[0] != 0)
-                            tlen = sprintf(tbuf, "[%5lu.%06lu](CPU:%d-pid:%d:%s-%s) ",
-                                           (unsigned long) t,
-                                            nanosec_rem / 1000,
-                                            this_cpu,
-                                            current->pid, 
-                                            current->comm, fname);
-                        else
-                            tlen = sprintf(tbuf, "[%5lu.%06lu](CPU:%d-pid:%d:%s-noWorkName) ",
-                                           (unsigned long) t,
-                                            nanosec_rem / 1000,
-                                            this_cpu,
-                                            current->pid, 
-                                            current->comm);
-                    }
-                    else
-//#endif                        
-                    {
                         tlen = sprintf(tbuf, "[%5lu.%06lu](CPU:%d-pid:%d:%s) ",
                                        (unsigned long) t,
                                         nanosec_rem / 1000,
@@ -1201,17 +1150,15 @@ asmlinkage int vprintk(const char *fmt, va_list args)
                                         current->pid, 
                                         current->comm);                    
                         if (boot_after_60sec == 0 && t >= 60)
-                             boot_after_60sec = 1;                
-                    }
+							boot_after_60sec = 1;                
                 }    
 
 				//20100930 jack_wong to add asus_debug mechanism -----
-				//ASUSDEBUG -
 				for (tp = tbuf; tp < tbuf + tlen; tp++)
 					emit_log_char(*tp);
 				printed_len += tlen;
 			}
-
+			//ASUSDEBUG - jeffery_hu@asus.com
 			if (!*p)
 				break;
 		}
@@ -1396,7 +1343,7 @@ void suspend_console(void)
 	//ASUSDEBUG + jeffery_hu@asus.com
 	ASUSEvtlog("[UTS] System Suspend");
 	suspend_in_progress = 1;
-	//ASUSDEBUG -
+	//ASUSDEBUG - jeffery_hu@asus.com
 	if (!console_suspend_enabled)
 		return;
 	printk("Suspending console(s) (use no_console_suspend to debug)\n");
@@ -1407,7 +1354,8 @@ void suspend_console(void)
 
 void resume_console(void)
 {
-	//ASUSDEBUG +
+	//ASUSDEBUG + jeffery_hu@asus.com
+
 	int i;
 	int j;
 
@@ -2126,8 +2074,8 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 	rcu_read_unlock();
 }
 #endif
-//ASUSDEBUG + jeffery_hu@asus.com
-//for debug message buffer change
+
+//ASUSDEBUG + jeffery_hu@asus.com for debug message buffer change
 void printk_buffer_rebase(void)
 {
     unsigned start, dest_idx, offset;
@@ -2151,7 +2099,7 @@ void printk_buffer_rebase(void)
 	asus_global.kernel_log_size = log_buf_len;
 	
 	memset( asus_global.kernel_version,0,sizeof(asus_global.kernel_version));
-	strncpy(asus_global.kernel_version,"ASUS_A600KL_PROJECT",sizeof(asus_global.kernel_version));
+	strncpy(asus_global.kernel_version,ASUS_SW_VER,sizeof(asus_global.kernel_version));
     offset = start = min(con_start, log_start);
     dest_idx = 0;
     while (start != log_end) {
@@ -2208,5 +2156,5 @@ static int __init Asus_ramdump_debug_init(void)
 
 device_initcall(Asus_ramdump_debug_init);
 #endif
-//ASUSDEBUG -
+//ASUSDEBUG - jeffery_hu@asus.com
 

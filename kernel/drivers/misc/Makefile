@@ -70,6 +70,6 @@ obj-$(CONFIG_QSEECOM) += qseecom.o
 obj-$(CONFIG_QFP_FUSE) += qfp_fuse.o
 obj-$(CONFIG_TI_DRV2667) += ti_drv2667.o
 obj-$(CONFIG_QPNP_MISC) += qpnp-misc.o
-#ASUS_BSP +++ pansy_chen "[A500KL][Sensor][NA][Spec] Porting Ak09911 E-compass"
+#ASUS_BSP +++ pansy_chen "[A500KL][Sensor][NA][Spec] porting 6-axis sensor"
 obj-$(CONFIG_SENSORS_AK09911)   += akm09911.o
-#ASUS_BSP --- pansy_chen "[A500KL][Sensor][NA][Spec] Porting Ak09911 E-compass"
+#ASUS_BSP --- pansy_chen "[A500KL][Sensor][NA][Spec] porting 6-axis sensor"

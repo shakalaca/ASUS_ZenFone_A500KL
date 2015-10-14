@@ -15,7 +15,7 @@
 		do { spin_unlock(lock); (void)(flags); } while (0)
 #define mutex_remove_waiter(lock, waiter, ti) \
 		__list_del((waiter)->list.prev, (waiter)->list.next)
-extern struct task_struct	*mutex_owner_asusdebug;//ASUSDEBUG jeffery_hu@asus.com
+
 #ifdef CONFIG_SMP
 static inline void mutex_set_owner(struct mutex *lock)
 {

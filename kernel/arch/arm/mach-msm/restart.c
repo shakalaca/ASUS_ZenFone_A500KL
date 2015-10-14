@@ -330,7 +330,7 @@ void msm_restart(char mode, const char *cmd)
 	printk(KERN_NOTICE "Going down for restart now\n");
 
 	msm_restart_prepare(cmd);
-	//flush_cache_all();//ASUSDEBUG jeffery_hu@asus.com
+
 	if (!use_restart_v2()) {
 		__raw_writel(0, msm_tmr0_base + WDT0_EN);
 		if (!(machine_is_msm8x60_fusion() ||

@@ -235,7 +235,7 @@ int suspend_devices_and_enter(suspend_state_t state)
 	}
 
 	//Add a timer to trigger wakelock debug
-    pr_info("[PM]unattended_timer: del_timer\n");
+    //pr_info("[PM]unattended_timer: del_timer\n");
     del_timer ( &unattended_timer );
 
 	suspend_console();
@@ -261,7 +261,7 @@ int suspend_devices_and_enter(suspend_state_t state)
 	resume_console();
 
 	//Add a timer to trigger wakelock debug
-    pr_info("[PM]unattended_timer: mod_timer\n");
+    //pr_info("[PM]unattended_timer: mod_timer\n");
     mod_timer(&unattended_timer, jiffies + msecs_to_jiffies(PM_UNATTENDED_TIMEOUT));
 
  Close:

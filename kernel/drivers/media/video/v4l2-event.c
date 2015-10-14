@@ -114,6 +114,7 @@ static void __v4l2_event_queue_fh(struct v4l2_fh *fh, const struct v4l2_event *e
 	struct v4l2_subscribed_event *sev;
 	struct v4l2_kevent *kev;
 	bool copy_payload = true;
+
 	/* Are we subscribed? */
 	sev = v4l2_event_subscribed(fh, ev->type, ev->id);
 	if (sev == NULL)
@@ -154,8 +155,7 @@ static void __v4l2_event_queue_fh(struct v4l2_fh *fh, const struct v4l2_event *e
 	list_add_tail(&kev->list, &fh->available);
 
 	fh->navailable++;
-	if(ev->id == 1)
-		pr_err("%s: kernel will wake up new session event\n",__func__);
+
 	wake_up_all(&fh->wait);
 }
 

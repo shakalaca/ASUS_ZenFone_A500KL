@@ -2,8 +2,6 @@
 #define _ASMARM_BUG_H
 
 #include <linux/linkage.h>
-#include <linux/io.h>
-#include <linux/kernel.h>
 
 #ifdef CONFIG_BUG
 
@@ -35,11 +33,6 @@
 
 #define __BUG(__file, __line, __value)				\
 do {								\
-	printk(KERN_CRIT"Causing wdt bite"); \
-	__raw_writel(1,ioremap(0xf9017000,SZ_4K)+0x14); \
-	mb(); \
-	__raw_writel(1,ioremap(0xf9017000,SZ_4K)+0x004); \
-	mb(); \
 	asm volatile("1:\t" BUG_INSTR_TYPE #__value "\n"	\
 		".pushsection .rodata.str, \"aMS\", %progbits, 1\n" \
 		"2:\t.asciz " #__file "\n" 			\

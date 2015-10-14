@@ -77,16 +77,40 @@ static int mmc_host_suspend(struct device *dev)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
 	int ret = 0;
+	unsigned long flags;
 
 	if (!mmc_use_core_pm(host))
 		return 0;
 
+	spin_lock_irqsave(&host->clk_lock, flags);
+	/*
+	 * let the driver know that suspend is in progress and must
+	 * be aborted on receiving a sdio card interrupt
+	 */
+	host->dev_status = DEV_SUSPENDING;
+	spin_unlock_irqrestore(&host->clk_lock, flags);
 	if (!pm_runtime_suspended(dev)) {
 		ret = mmc_suspend_host(host);
 		if (ret < 0)
 			pr_err("%s: %s: failed: ret: %d\n", mmc_hostname(host),
 			       __func__, ret);
 	}
+	/*
+	 * If SDIO function driver doesn't want to power off the card,
+	 * atleast turn off clocks to allow deep sleep.
+	 */
+	if (!ret && host->card && mmc_card_sdio(host->card) &&
+	    host->ios.clock) {
+		spin_lock_irqsave(&host->clk_lock, flags);
+		host->clk_old = host->ios.clock;
+		host->ios.clock = 0;
+		host->clk_gated = true;
+		spin_unlock_irqrestore(&host->clk_lock, flags);
+		mmc_set_ios(host);
+	}
+	spin_lock_irqsave(&host->clk_lock, flags);
+	host->dev_status = DEV_SUSPENDED;
+	spin_unlock_irqrestore(&host->clk_lock, flags);
 	return ret;
 }
 
@@ -104,6 +128,7 @@ static int mmc_host_resume(struct device *dev)
 			pr_err("%s: %s: failed: ret: %d\n", mmc_hostname(host),
 			       __func__, ret);
 	}
+	host->dev_status = DEV_RESUMED;
 	return ret;
 }
 
@@ -610,182 +635,6 @@ static struct attribute_group clk_scaling_attr_grp = {
 	.attrs = clk_scaling_attrs,
 };
 
-//ASUS_BSP +++ lei_guo "mmc suspend stress test"
-#ifdef CONFIG_MMC_SUSPENDTEST
-static ssize_t
-show_suspendcnt(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	return snprintf(buf, PAGE_SIZE, "%d\n", host->suspendcnt);
-}
-
-static DEVICE_ATTR(suspendcnt, S_IRUGO | S_IWUSR,
-		show_suspendcnt, NULL);
-
-static ssize_t
-show_suspendtest(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	if (host->suspendtest)
-		return snprintf(buf, PAGE_SIZE, "suspendtest enabled\n");
-	else
-		return snprintf(buf, PAGE_SIZE, "suspendtest disabled\n");
-}
-
-static ssize_t
-set_suspendtest(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
-{
-	int64_t value;
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-
-	BUG_ON(!host);	
-
-	sscanf(buf, "%lld", &value);
-	spin_lock(&host->lock);
-	if (!value) {
-		host->suspendtest = false;
-	} else {
-		host->suspendtest = true;
-	}
-	spin_unlock(&host->lock);
-
-	return count;
-}
-
-static DEVICE_ATTR(suspendtest, S_IRUGO | S_IWUSR,
-		show_suspendtest, set_suspendtest);
-
-static ssize_t
-show_suspend_datasz(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	return snprintf(buf, PAGE_SIZE, "suspend data size:%d\n", host->suspend_datasz);
-}
-
-static ssize_t
-set_suspend_datasz(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
-{
-	int64_t value;
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-
-	BUG_ON(!host);	
-
-	sscanf(buf, "%lld", &value);
-	spin_lock(&host->lock);
-	host->suspend_datasz = (unsigned int )value;
-	spin_unlock(&host->lock);
-	pr_info("%s: suspend data size: %d\n", mmc_hostname(host), host->suspend_datasz);
-
-	return count;
-}
-
-static DEVICE_ATTR(suspend_datasz, S_IRUGO | S_IWUSR,
-		show_suspend_datasz, set_suspend_datasz);
-#endif
-//ASUS_BSP --- lei_guo "mmc suspend stress test"
-
-//ASUS_BSP +++ lei_guo "mmc bkops stress test"
-#ifdef CONFIG_MMC_BKOPS_TEST
-static ssize_t
-show_bkops_startcnt(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	return snprintf(buf, PAGE_SIZE, "%d\n", host->bkops_startcnt);
-}
-
-static DEVICE_ATTR(bkops_startcnt, S_IRUGO | S_IWUSR,
-		show_bkops_startcnt, NULL);
-
-static ssize_t
-show_bkops_stopcnt(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	return snprintf(buf, PAGE_SIZE, "%d\n", host->bkops_stopcnt);
-}
-
-static DEVICE_ATTR(bkops_stopcnt, S_IRUGO | S_IWUSR,
-		show_bkops_stopcnt, NULL);
-
-static ssize_t
-show_bkopstest(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	if (host->bkopstest)
-		return snprintf(buf, PAGE_SIZE, "bkopstest enabled\n");
-	else
-		return snprintf(buf, PAGE_SIZE, "bkopstest disabled\n");
-}
-
-static ssize_t
-set_bkopstest(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
-{
-	int64_t value;
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-
-	BUG_ON(!host);	
-
-	sscanf(buf, "%lld", &value);
-	spin_lock(&host->lock);
-	if (!value) {
-		host->bkopstest = false;
-	} else {
-		host->bkopstest = true;
-	}
-	spin_unlock(&host->lock);
-
-	return count;
-}
-
-static DEVICE_ATTR(bkopstest, S_IRUGO | S_IWUSR,
-		show_bkopstest, set_bkopstest);
-
-static ssize_t
-show_bkops_datasz(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	BUG_ON(!host);
-
-	return snprintf(buf, PAGE_SIZE, "bkops data size:%d\n", host->bkops_datasz);
-}
-
-static ssize_t
-set_bkops_datasz(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
-{
-	int64_t value;
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-
-	BUG_ON(!host);	
-
-	sscanf(buf, "%lld", &value);
-	spin_lock(&host->lock);
-	host->bkops_datasz = (unsigned int )value;
-	spin_unlock(&host->lock);
-	pr_info("%s: bkops data size: %d\n", mmc_hostname(host), host->bkops_datasz);
-
-	return count;
-}
-
-static DEVICE_ATTR(bkops_datasz, S_IRUGO | S_IWUSR,
-		show_bkops_datasz, set_bkops_datasz);
-#endif
-//ASUS_BSP --- lei_guo "mmc bkops stress test"
-
 #ifdef CONFIG_MMC_PERF_PROFILING
 static ssize_t
 show_perf(struct device *dev, struct device_attribute *attr, char *buf)
@@ -838,17 +687,69 @@ static DEVICE_ATTR(perf, S_IRUGO | S_IWUSR,
 #endif
 
 
-//ASUS_BSP +++ Allen_Zhuang "sd status for ATD"
+//ASUS_BSP +++ Lei_Guo "cmd5 stress test"
+#ifdef CONFIG_MMC_CMD5TEST
 static ssize_t
-show_sdstatus(struct device *dev, struct device_attribute *attr, char *buf)
+show_sleepcnt(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
 	BUG_ON(!host);
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", host->sd_status);
+	return snprintf(buf, PAGE_SIZE, "%d\n", host->sleepcnt);
+}
+
+static DEVICE_ATTR(sleepcnt, S_IRUGO | S_IWUSR,
+		show_sleepcnt, NULL);
+
+static ssize_t
+show_cmd5test(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *host = cls_dev_to_mmc_host(dev);
+	BUG_ON(!host);
+
+	if (host->cmd5test)
+		return snprintf(buf, PAGE_SIZE, "cmd5test enabled\n");
+	else
+		return snprintf(buf, PAGE_SIZE, "cmd5test disabled\n");
+}
+
+static ssize_t
+set_cmd5test(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int64_t value;
+	struct mmc_host *host = cls_dev_to_mmc_host(dev);
+
+	BUG_ON(!host);	
+
+	sscanf(buf, "%lld", &value);
+	spin_lock(&host->lock);
+	if (!value) {
+		host->cmd5test = false;
+	} else {
+		host->cmd5test = true;
+	}
+	spin_unlock(&host->lock);
+
+	return count;
+}
+
+static DEVICE_ATTR(cmd5test, S_IRUGO | S_IWUSR,
+		show_cmd5test, set_cmd5test);
+#endif
+//ASUS_BSP --- Lei_Guo "cmd5 stress test"
+
+//ASUS_BSP +++ Allen_Zhuang "sd status for ATD"
+static ssize_t
+		show_sdstatus(struct device *dev, struct device_attribute *attr, char *buf)
+{
+       struct mmc_host *host = cls_dev_to_mmc_host(dev);
+       BUG_ON(!host);
+
+       return snprintf(buf, PAGE_SIZE, "%d\n", host->sd_status);
 }
 static DEVICE_ATTR(sd_status, S_IRUGO | S_IWUSR,
-		show_sdstatus, NULL);
+       show_sdstatus, NULL);
 //ASUS_BSP --- Allen_Zhuang "sd status for ATD"
 
 
@@ -857,21 +758,12 @@ static struct attribute *dev_attrs[] = {
 	&dev_attr_perf.attr,
 #endif
 	&dev_attr_sd_status.attr, //ASUS_BSP +++ Allen_Zhuang "sd status for ATD"
-//ASUS_BSP +++ lei_guo "mmc suspend stress test"
-#ifdef CONFIG_MMC_SUSPENDTEST
-	&dev_attr_suspendtest.attr,
-	&dev_attr_suspendcnt.attr,
-	&dev_attr_suspend_datasz.attr,
+//ASUS_BSP +++ Lei_Guo "cmd5 stress test"
+#ifdef CONFIG_MMC_CMD5TEST
+	&dev_attr_cmd5test.attr,
+	&dev_attr_sleepcnt.attr,
 #endif
-//ASUS_BSP --- lei_guo "mmc suspend stress test"
-//ASUS_BSP +++ lei_guo "mmc bkops stress test"
-#ifdef CONFIG_MMC_BKOPS_TEST
-	&dev_attr_bkopstest.attr,
-	&dev_attr_bkops_startcnt.attr,
-	&dev_attr_bkops_stopcnt.attr,
-	&dev_attr_bkops_datasz.attr,
-#endif
-//ASUS_BSP --- lei_guo "mmc bkops stress test"
+//ASUS_BSP --- Lei_Guo "cmd5 stress test"
 	NULL,
 };
 static struct attribute_group dev_attr_grp = {
@@ -904,6 +796,7 @@ int mmc_add_host(struct mmc_host *host)
 	if (err)
 		return err;
 
+	device_enable_async_suspend(&host->class_dev);
 	led_trigger_register_simple(dev_name(&host->class_dev), &host->led);
 
 #ifdef CONFIG_DEBUG_FS

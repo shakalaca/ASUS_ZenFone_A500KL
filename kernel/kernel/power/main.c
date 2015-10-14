@@ -508,7 +508,9 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 		error = hibernate();
 	else
 		error = -EINVAL;
-
+	
+	old_state = state;
+	
  out:
 	pm_autosleep_unlock();
 	return error ? error : n;
@@ -613,7 +615,6 @@ static ssize_t autosleep_store(struct kobject *kobj,
 	suspend_state_t state = decode_state(buf, n);
 	int error;
 
-	ASUSEvtlog("[PM]request_suspend_state: (%d->%d)\n", old_state, state);
 	if (state == PM_SUSPEND_ON
 	    && strcmp(buf, "off") && strcmp(buf, "off\n"))
 		return -EINVAL;

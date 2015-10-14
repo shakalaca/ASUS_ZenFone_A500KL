@@ -55,24 +55,26 @@ static struct qpnp_vib *vib_dev;
 static int qpnp_vib_read_u8(struct qpnp_vib *vib, u8 *data, u16 reg)
 {
 	int rc;
+
 	rc = spmi_ext_register_readl(vib->spmi->ctrl, vib->spmi->sid,
 							reg, data, 1);
-	if (rc < 0){
+	if (rc < 0)
 		dev_err(&vib->spmi->dev,
 			"Error reading address: %X - ret %X\n", reg, rc);
-	}
+
 	return rc;
 }
 
 static int qpnp_vib_write_u8(struct qpnp_vib *vib, u8 *data, u16 reg)
 {
 	int rc;
+
 	rc = spmi_ext_register_writel(vib->spmi->ctrl, vib->spmi->sid,
 							reg, data, 1);
-	if (rc < 0){
+	if (rc < 0)
 		dev_err(&vib->spmi->dev,
 			"Error writing address: %X - ret %X\n", reg, rc);
-	}
+
 	return rc;
 }
 
@@ -80,6 +82,7 @@ int qpnp_vibrator_config(struct qpnp_vib_config *vib_cfg)
 {
 	u8 reg = 0;
 	int rc = -EINVAL, level;
+
 	if (vib_dev == NULL) {
 		pr_err("%s: vib_dev is NULL\n", __func__);
 		return -ENODEV;
@@ -160,6 +163,7 @@ static void qpnp_vib_enable(struct timed_output_dev *dev, int value)
 
 	mutex_lock(&vib->lock);
 	hrtimer_cancel(&vib->vib_timer);
+
 	if (value == 0)
 		vib->state = 0;
 	else {
@@ -208,6 +212,7 @@ static enum hrtimer_restart qpnp_vib_timer_func(struct hrtimer *timer)
 static int qpnp_vibrator_suspend(struct device *dev)
 {
 	struct qpnp_vib *vib = dev_get_drvdata(dev);
+
 	hrtimer_cancel(&vib->vib_timer);
 	cancel_work_sync(&vib->work);
 	/* turn-off vibrator */
@@ -297,6 +302,7 @@ static int __devinit qpnp_vibrator_probe(struct spmi_device *spmi)
 static int  __devexit qpnp_vibrator_remove(struct spmi_device *spmi)
 {
 	struct qpnp_vib *vib = dev_get_drvdata(&spmi->dev);
+
 	cancel_work_sync(&vib->work);
 	hrtimer_cancel(&vib->vib_timer);
 	timed_output_dev_unregister(&vib->timed_dev);

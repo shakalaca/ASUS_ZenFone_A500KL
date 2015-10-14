@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012, 2014 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,6 +25,9 @@ enum logk_event_type {
 	LOGK_HOTPLUG = 4,
 	LOGK_CTXID = 5,
 	LOGK_TIMESTAMP = 6,
+	LOGK_L2CPREAD = 7,
+	LOGK_L2CPWRITE = 8,
+	LOGK_IRQ = 9,
 };
 
 #define LOGTYPE_NOPC 0x80
@@ -36,18 +39,20 @@ struct msm_rtb_platform_data {
 /* Write
  * 1) 3 bytes sentinel
  * 2) 1 bytes of log type
- * 3) 4 bytes of where the caller came from
+ * 3) 8 bytes of where the caller came from
  * 4) 4 bytes index
- * 4) 4 bytes extra data from the caller
+ * 4) 8 bytes extra data from the caller
+ * 5) 8 bytes for timestamp
  *
- * Total = 16 bytes.
+ * Total = 32 bytes.
  */
 struct msm_rtb_layout {
 	unsigned char sentinel[3];
 	unsigned char log_type;
-	void *caller;
-	unsigned long idx;
-	void *data;
+	uint32_t idx;
+	uint64_t caller;
+	uint64_t data;
+	uint64_t timestamp;
 } __attribute__ ((__packed__));
 
 

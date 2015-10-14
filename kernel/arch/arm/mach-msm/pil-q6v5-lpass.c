@@ -272,7 +272,6 @@ static void adsp_fatal_fn(struct work_struct *work)
 	struct lpass_data *drv = container_of(work, struct lpass_data, work);
 
 	pr_err("Watchdog bite received from ADSP!\n");
-	//panic("Watchdog bite received from ADSP!\n");  //ASUSDEBUG +++ Jeffery_Hu@asus.com "panic when watchdog bite received from ADSP"
 	restart_adsp(drv);
 }
 

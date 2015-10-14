@@ -145,19 +145,10 @@ static int pil_msa_wait_for_mba_ready(struct q6v5_data *drv)
 	int ret;
 	u32 status;
 
-	uint32_t *pbl_addr;
-	int i;
-
 	/* Wait for PBL completion. */
 	ret = readl_poll_timeout(drv->rmb_base + RMB_PBL_STATUS, status,
 		status != 0, POLL_INTERVAL_US, pbl_mba_boot_timeout_ms * 1000);
 	if (ret) {
-		//add pbl boot log
-		pbl_addr=ioremap(0xFC820000,36);
-		for(i=0;i<9;i++,pbl_addr++)
-		dev_err(dev,"PBL regster 0x080%lx value 0x080%lx",(long unsigned int)pbl_addr,(long unsigned int)*pbl_addr);
-		//add pbl boot log
-
 		dev_err(dev, "PBL boot timed out\n");
 		return ret;
 	}

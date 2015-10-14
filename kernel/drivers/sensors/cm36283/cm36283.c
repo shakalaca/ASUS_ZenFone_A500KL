@@ -2763,7 +2763,7 @@ static struct of_device_id cm36283_match_table[] = {
 
 static int cm36283_platform_suspend_noirq( struct device *dev )
 {
-	printk("[cm36283][suspend_noirq] g_earlysuspend_int = %d\n",  g_cm36283_earlysuspend_int);
+	//printk("[cm36283][suspend_noirq] g_earlysuspend_int = %d\n",  g_cm36283_earlysuspend_int);
 	if(g_cm36283_earlysuspend_int == 1) {
 		g_cm36283_earlysuspend_int = 0;
 		printk("[cm36283][suspend_noirq] cm36283_platform_suspend_noirq return -EBUSY \n");
@@ -2775,7 +2775,7 @@ static int cm36283_platform_suspend_noirq( struct device *dev )
 
 static int cm36283_platform_resume_noirq( struct device *dev )
 {
-        printk("[cm36283] in %s\n",__func__);
+        //printk("[cm36283] in %s\n",__func__);
         return 0;
 }
 
@@ -3071,7 +3071,7 @@ static int cm36283_suspend(struct device *dev )
 	struct i2c_msg msg[1];
 	unsigned char data[2] = {0,0};
 
-	printk("[cm36283] ++cm36283_suspend, psensor:%d, als:%d\n", g_proxm_switch_on, g_cm36283_als_switch_on);
+	//printk("[cm36283] ++cm36283_suspend, psensor:%d, als:%d\n", g_proxm_switch_on, g_cm36283_als_switch_on);
 
 	enable_irq_wake(g_cm36283_device.irq);
 
@@ -3080,7 +3080,7 @@ static int cm36283_suspend(struct device *dev )
 		g_cm36283_als_switch_on = 0;
 		g_ambient_suspended = 1;
 
-		printk(DBGMSK_PRX_G2"[cm36283] cm36283_suspend, turn off ambient\n");
+		//printk(DBGMSK_PRX_G2"[cm36283] cm36283_suspend, turn off ambient\n");
 
 		//0x00_L
 		msg->addr = cm36283_client->addr;
@@ -3097,7 +3097,7 @@ static int cm36283_suspend(struct device *dev )
 		else
 			printk(DBGMSK_PRX_G2"[cm36283] als_config=0x%x, data=0x%x\n",data[0], data[1]);
 	}
-	printk("[cm36283] --cm36283_suspend\n");
+	//printk("[cm36283] --cm36283_suspend\n");
 	return 0 ;
 }
 
@@ -3113,7 +3113,7 @@ static int cm36283_resume(struct device *dev )
 			wake_lock_timeout(&proximity_wake_lock, 1 * HZ);
 	//}
 
-	printk("[cm36283][als] resume: g_ambient_suspended = %d first_light=%d\n",g_ambient_suspended, g_cm36283_light_first);
+	//printk("[cm36283][als] resume: g_ambient_suspended = %d first_light=%d\n",g_ambient_suspended, g_cm36283_light_first);
 	if(g_ambient_suspended==1) {
 		//if ( !g_bIsP01Attached ) {
 			g_ambient_suspended = 0;
@@ -3129,7 +3129,7 @@ static int cm36283_resume(struct device *dev )
 
 	g_cm36283_earlysuspend_int = 0;
 
-	printk(DBGMSK_PRX_G2"[cm36283]--cm36283_resume\n");
+	//printk(DBGMSK_PRX_G2"[cm36283]--cm36283_resume\n");
 	return 0 ;
 }
 

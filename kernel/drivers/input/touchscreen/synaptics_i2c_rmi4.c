@@ -32,10 +32,6 @@
 #include "synaptics_i2c_rmi4.h"
 #include <linux/input/mt.h>
 
-//ASUS BSP Freeman: /sys/class/switch/touch +++++
-struct switch_dev pfs_switch_touch;
-//ASUS BSP Freeman: /sys/class/switch/touch -----
-
 #define DRIVER_NAME "synaptics_rmi4_i2c"
 #define INPUT_PHYS_NAME "synaptics_rmi4_i2c/input0"
 #define DEBUGFS_DIR_NAME "ts_debug"
@@ -105,9 +101,6 @@ enum device_status {
 
 #define RMI4_COORDS_ARR_SIZE 4
 
-static unsigned int build_id;
-static unsigned char config_id[4];
-
 static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
 		unsigned short addr, unsigned char *data,
 		unsigned short length);
@@ -118,21 +111,17 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
 
 static int synaptics_rmi4_reset_device(struct synaptics_rmi4_data *rmi4_data);
 
-static int synaptics_rmi4_reprobe_device(struct synaptics_rmi4_data *rmi4_data);
-
 static void synaptics_rmi4_sensor_wake(struct synaptics_rmi4_data *rmi4_data);
-
-static void synaptics_rmi4_sensor_sleep(struct synaptics_rmi4_data *rmi4_data);
 
 static int synaptics_rmi4_check_configuration(struct synaptics_rmi4_data
 		*rmi4_data);
-static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,bool enable);
 
-#ifdef CONFIG_PM
+
 static int synaptics_rmi4_suspend(struct device *dev);
 
 static int synaptics_rmi4_resume(struct device *dev);
 
+#ifdef CONFIG_PM
 static ssize_t synaptics_rmi4_full_pm_cycle_show(struct device *dev,
 		struct device_attribute *attr, char *buf);
 
@@ -179,21 +168,6 @@ static ssize_t synaptics_rmi4_flipy_show(struct device *dev,
 static ssize_t synaptics_rmi4_flipy_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count);
 
-//ASUS BSP Freeman ++++++++++++++++++
-static ssize_t fwu_sysfs_touch_status_show(struct switch_dev *sdev, char *buf);
-static ssize_t fwu_sysfs_fw_name_show(struct switch_dev *sdev, char *buf);
-
-static ssize_t synaptics_rmi4_tp_enable_show(struct device *dev,
-		struct device_attribute *attr, char *buf);
-static ssize_t synaptics_rmi4_tp_enable_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count);
-static ssize_t synaptics_rmi4_report_rate_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count);
-static ssize_t synaptics_rmi4_glove_mode_show(struct device *dev,
-		struct device_attribute *attr, char *buf);
-static ssize_t synaptics_rmi4_glove_mode_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count);
-//ASUS BSP Freeman -----------------------------
 
 struct synaptics_rmi4_f01_device_status {
 	union {
@@ -331,16 +305,6 @@ struct synaptics_rmi4_f12_ctrl_23 {
 	};
 };
 
-struct synaptics_rmi4_f12_ctrl_26 {
-	union {
-		struct {
-			unsigned char enable_gloved_finger_detection;
-			unsigned char max_reported_objects;
-		};
-		unsigned char data[2];
-	};
-};
-
 struct synaptics_rmi4_f12_finger_data {
 	unsigned char object_type_and_status;
 	unsigned char x_lsb;
@@ -428,29 +392,6 @@ struct synaptics_rmi4_exp_fn {
 	struct list_head link;
 };
 
-//ASUS BSP Freeman : to control touch driver log with debug mask +++
-enum{
-	   DEBUG_FP = 1U << 0,
-	   DEBUG_MV = 1U << 1,
-	  DEBUG_LED = 1U << 2,
-};
-
-#ifdef ASUS_FACTORY_BUILD
-static int debug_mask = 2;
-#else
-static int debug_mask = 0;
-#endif
-
-static int  REPORT_RATE = 0;
-module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
-
-#define rmi4_dlog(mask, message, ...) \
-	do { \
-		if ((mask) & debug_mask) \
-			printk("[Touch] " message, ## __VA_ARGS__); \
-	} while (0)
-//ASUS BSP Freeman : to control touch driver log with debug mask ---
-
 static struct device_attribute attrs[] = {
 #ifdef CONFIG_PM
 	__ATTR(full_pm_cycle, (S_IRUGO | S_IWUSR | S_IWGRP),
@@ -458,7 +399,7 @@ static struct device_attribute attrs[] = {
 			synaptics_rmi4_full_pm_cycle_store),
 #endif
 	__ATTR(reset, S_IWUSR | S_IWGRP,
-			synaptics_rmi4_show_error,
+			NULL,
 			synaptics_rmi4_f01_reset_store),
 	__ATTR(productinfo, S_IRUGO,
 			synaptics_rmi4_f01_productinfo_show,
@@ -478,22 +419,36 @@ static struct device_attribute attrs[] = {
 	__ATTR(flipy, (S_IRUGO | S_IWUSR | S_IWGRP),
 			synaptics_rmi4_flipy_show,
 			synaptics_rmi4_flipy_store),
-//ASUS BSP Freeman +++++++++++++
-	__ATTR(function, (S_IRUGO | S_IWUSR),
-			synaptics_rmi4_tp_enable_show,
-			synaptics_rmi4_tp_enable_store),
-	__ATTR(report_rate, S_IWUSR,
-			synaptics_rmi4_show_error,
-			synaptics_rmi4_report_rate_store),
-	__ATTR(glove_mode, (S_IRUGO | S_IWUGO),
-			synaptics_rmi4_glove_mode_show,
-			synaptics_rmi4_glove_mode_store),
-//ASUS BSP Freeman -------------------
 };
 
 static bool exp_fn_inited;
 static struct mutex exp_fn_list_mutex;
 static struct list_head exp_fn_list;
+
+static int synaptics_rmi4_debug_suspend_set(void *_data, u64 val)
+{
+	struct synaptics_rmi4_data *rmi4_data = _data;
+
+	if (val)
+		synaptics_rmi4_suspend(&rmi4_data->input_dev->dev);
+	else
+		synaptics_rmi4_resume(&rmi4_data->input_dev->dev);
+
+	return 0;
+}
+
+static int synaptics_rmi4_debug_suspend_get(void *_data, u64 *val)
+{
+	struct synaptics_rmi4_data *rmi4_data = _data;
+
+	*val = rmi4_data->suspended;
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(debug_suspend_fops, synaptics_rmi4_debug_suspend_get,
+			synaptics_rmi4_debug_suspend_set, "%lld\n");
+
 #ifdef CONFIG_PM
 static ssize_t synaptics_rmi4_full_pm_cycle_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -517,30 +472,6 @@ static ssize_t synaptics_rmi4_full_pm_cycle_store(struct device *dev,
 
 	return count;
 }
-
-static int synaptics_rmi4_debug_suspend_set(void *_data, u64 val)
-{
-	struct synaptics_rmi4_data *rmi4_data = _data;
-
-	if (val)
-		synaptics_rmi4_suspend(&rmi4_data->input_dev->dev);
-	else
-		synaptics_rmi4_resume(&rmi4_data->input_dev->dev);
-
-	return 0;
-}
-
-static ssize_t synaptics_rmi4_debug_suspend_get(void *_data, u64 *val)
-{
-	struct synaptics_rmi4_data *rmi4_data = _data;
-
-	*val = rmi4_data->suspended;
-
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(debug_suspend_fops, synaptics_rmi4_debug_suspend_get,
-			synaptics_rmi4_debug_suspend_set, "%lld\n");
 
 #ifdef CONFIG_FB
 static void configure_sleep(struct synaptics_rmi4_data *rmi4_data)
@@ -571,6 +502,11 @@ static void configure_sleep(struct synaptics_rmi4_data *rmi4_data)
 	return;
 }
 #endif
+#else
+static void configure_sleep(struct synaptics_rmi4_data *rmi4_data)
+{
+	return;
+}
 #endif
 
 static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
@@ -610,9 +546,9 @@ static ssize_t synaptics_rmi4_f01_productinfo_show(struct device *dev,
 static ssize_t synaptics_rmi4_f01_buildid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	unsigned int build_id;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 	struct synaptics_rmi4_device_info *rmi;
-	int retval = 0;
 
 	rmi = &(rmi4_data->rmi4_mod_info);
 
@@ -620,12 +556,8 @@ static ssize_t synaptics_rmi4_f01_buildid_show(struct device *dev,
 			(unsigned int)rmi->build_id[1] * 0x100 +
 			(unsigned int)rmi->build_id[2] * 0x10000;
 
-	retval = synaptics_rmi4_i2c_read(rmi4_data,
-			0x0A,
-			config_id,
-			sizeof(config_id));
-
-	return snprintf(buf, PAGE_SIZE, "%u\n",build_id);
+	return snprintf(buf, PAGE_SIZE, "%u\n",
+			build_id);
 }
 
 static ssize_t synaptics_rmi4_f01_flashprog_show(struct device *dev,
@@ -763,151 +695,6 @@ static ssize_t synaptics_rmi4_flipy_store(struct device *dev,
 
 	return count;
 }
-
-//ASUS BSP Freeman ++++++++++++++++++
-static ssize_t synaptics_rmi4_tp_enable_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-
-	return snprintf(buf, PAGE_SIZE, "%d\n",rmi4_data->irq_enabled);
-}
-
-static ssize_t synaptics_rmi4_tp_enable_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int input;
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-
-	if (sscanf(buf, "%u", &input) != 1)
-		return -EINVAL;
-
-	if(input == 1)
-			synaptics_rmi4_irq_enable(rmi4_data, true);
-	else if(input == 0)
-			synaptics_rmi4_irq_enable(rmi4_data, false);
-	else
-		return -EINVAL;
-
-	return count;
-}
-
-static ssize_t synaptics_rmi4_report_rate_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int input;
-
-	if (sscanf(buf, "%u", &input) != 1)
-		return -EINVAL;
-
-	if(input == 1)
-			REPORT_RATE = 1;
-	else if(input == 0)
-			REPORT_RATE = 0;
-	else
-		return -EINVAL;
-
-	return count;
-}
-
-static ssize_t synaptics_rmi4_glove_mode_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-	int retval;
-	unsigned char object_report_enable;
-	unsigned char feature_enable;
-
-	retval = synaptics_rmi4_i2c_read(rmi4_data,
-			0x1D,
-			&object_report_enable,
-			sizeof(object_report_enable));
-	if (retval < 0) {
-		dev_err(dev,"%s: Failed to read object report enable status, error = %d\n",__func__, retval);
-		return retval;
-	}
-
-	retval = synaptics_rmi4_i2c_read(rmi4_data,
-			0x1F,
-			&feature_enable,
-			sizeof(feature_enable));
-	if (retval < 0) {
-		dev_err(dev,"%s: Failed to read object report enable status, error = %d\n",__func__, retval);
-		return retval;
-	}
-
-	return snprintf(buf, PAGE_SIZE, "%02x %02x\n",object_report_enable,feature_enable);
-}
-
-static ssize_t synaptics_rmi4_glove_mode_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-	int retval;
-	unsigned int glove_mode = 0;
-	struct synaptics_rmi4_f12_ctrl_23 ctrl_23;
-	struct synaptics_rmi4_f12_ctrl_26 ctrl_26;
-
-	if (sscanf(buf, "%u", &glove_mode) != 1)
-		return -EINVAL;
-
-	// F12_2D_Ctrl23: Glove Finger Report Enable
-	retval = synaptics_rmi4_i2c_read(rmi4_data,
-					0x1D,
-					ctrl_23.data,
-					sizeof(ctrl_23.data));
-	if (retval < 0)
-		return -EINVAL;
-
-	if (glove_mode == 1)
-		ctrl_23.obj_type_enable |= 0x20;
-	else
-		ctrl_23.obj_type_enable &= 0xDF;
-
-	retval = synaptics_rmi4_i2c_write(rmi4_data,
-					0x1D,
-					ctrl_23.data,
-					sizeof(ctrl_23.data));
-	if (retval < 0)
-		return -EINVAL;
-
-	// F12_2D_Ctrl26: Enable Gloved Finger Detection
-	retval = synaptics_rmi4_i2c_read(rmi4_data,
-					0x1F,
-					ctrl_26.data,
-					sizeof(ctrl_26.data));
-	if (retval < 0)
-			return -EINVAL;
-
-	if (glove_mode == 1)
-			ctrl_26.enable_gloved_finger_detection |= 0x01;
-	else
-			ctrl_26.enable_gloved_finger_detection &= 0xFE;
-
-	retval = synaptics_rmi4_i2c_write(rmi4_data,
-					0x1F,
-					ctrl_26.data,
-					sizeof(ctrl_26.data));
-	if (retval < 0)
-		return -EINVAL;
-
-	return count;
-}
-
-//ASUS BSP Freeman ---------------------------
-
-//ASUS BSP Freeman: add for touch performance ++++++++++++++
-static ssize_t fwu_sysfs_touch_status_show(struct switch_dev *sdev, char *buf)
-{
-	unsigned int statuss = 1;
-	return sprintf(buf, "synaptics_touch_status=%u\n",  statuss);
-}
-
-static ssize_t fwu_sysfs_fw_name_show(struct switch_dev *sdev, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "PR%u-s3508r_hybrid_%02x%02x%02x%02x\n",build_id,config_id[0], config_id[1], config_id[2], config_id[3]);
-}
-//ASUS BSP Freeman: add for touch performance ------
 
  /**
  * synaptics_rmi4_set_page()
@@ -1261,9 +1048,6 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	struct synaptics_rmi4_f12_extra_data *extra_data;
 	struct synaptics_rmi4_f12_finger_data *data;
 	struct synaptics_rmi4_f12_finger_data *finger_data;
-//ASUS_BSP Freeman:print the report rate of touch screen +++++++++++++
-	unsigned char report_rate1,report_rate2;
-//ASUS_BSP Freeman:print the report rate of touch screen -------------
 
 	fingers_to_process = fhandler->num_of_data_points;
 	data_addr = fhandler->full_addr.data_base;
@@ -1341,24 +1125,6 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		}
 	}
 
-//ASUS_BSP Freeman:print the report rate of touch screen +++++++++++++
-	if(REPORT_RATE == 1){
-			retval = synaptics_rmi4_i2c_read(rmi4_data,
-						0x106,
-						&report_rate1,
-						sizeof(report_rate1));
-			if (retval < 0)
-				return retval;
-			retval = synaptics_rmi4_i2c_read(rmi4_data,
-						0x107,
-						&report_rate2,
-						sizeof(report_rate2));
-			if (retval < 0)
-				return retval;
-			printk("report_rate[hi],report_rate[lo]:%d,%d\n",report_rate2,report_rate1);
-	}
-//ASUS_BSP Freeman:print the report rate of touch screen ---------------------
-
 	input_report_key(rmi4_data->input_dev,
 			BTN_TOUCH, touch_count > 0);
 	input_report_key(rmi4_data->input_dev,
@@ -1373,7 +1139,7 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	return touch_count;
 }
 
-static int synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
+static void synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 		struct synaptics_rmi4_fn *fhandler)
 {
 	int retval;
@@ -1381,7 +1147,6 @@ static int synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 	unsigned char index;
 	unsigned char shift;
 	unsigned char status;
-	unsigned char touch_count = 0;
 	unsigned char *data;
 	unsigned short data_addr = fhandler->full_addr.data_base;
 	struct synaptics_rmi4_f1a_handle *f1a = fhandler->data;
@@ -1409,7 +1174,7 @@ static int synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 		dev_err(&rmi4_data->i2c_client->dev,
 				"%s: Failed to read button data registers\n",
 				__func__);
-		return 0;
+		return;
 	}
 
 	data = f1a->button_data_buffer;
@@ -1429,8 +1194,6 @@ static int synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 				__func__, button,
 				f1a->button_map[button],
 				status);
-      if(status)
-          touch_count++;
 #ifdef NO_0D_WHILE_2D
 		if (rmi4_data->fingers_on_2d == false) {
 			if (status == 1) {
@@ -1468,7 +1231,7 @@ static int synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 
 	input_sync(rmi4_data->input_dev);
 
-   return touch_count;
+	return;
 }
 
  /**
@@ -1484,7 +1247,7 @@ static void synaptics_rmi4_report_touch(struct synaptics_rmi4_data *rmi4_data,
 		struct synaptics_rmi4_fn *fhandler,
 		unsigned char *touch_count)
 {
-	unsigned char touch_count_2d = 0;
+	unsigned char touch_count_2d;
 
 	dev_dbg(&rmi4_data->i2c_client->dev,
 			"%s: Function %02x reporting\n",
@@ -1514,7 +1277,7 @@ static void synaptics_rmi4_report_touch(struct synaptics_rmi4_data *rmi4_data,
 		break;
 
 	case SYNAPTICS_RMI4_F1A:
-		touch_count_2d = synaptics_rmi4_f1a_report(rmi4_data, fhandler);
+		synaptics_rmi4_f1a_report(rmi4_data, fhandler);
 		break;
 
 	default:
@@ -1689,14 +1452,12 @@ static int synaptics_rmi4_parse_dt(struct device *dev,
 		return rc;
 	}
 
-/*
 	rc = of_property_read_string(np, "synaptics,fw-image-name",
 		&rmi4_pdata->fw_image_name);
 	if (rc && (rc != -EINVAL)) {
 		dev_err(dev, "Unable to read fw image name\n");
 		return rc;
 	}
-*/
 
 	/* reset, irq gpio info */
 	rmi4_pdata->reset_gpio = of_get_named_gpio_flags(np,
@@ -1795,38 +1556,6 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 
 	return retval;
 }
-
-//ASUS_BSP Freeman: add for creating virtual_key_maps +++
-#define MAX_LEN		200
-static ssize_t wTP_virtual_keys_register(struct kobject *kobj,
-		     struct kobj_attribute *attr, char *buf)
-{
-	char *virtual_keys = 	__stringify(EV_KEY) ":" __stringify(KEY_BACK) ":90:1330:180:60" "\n" \
-				__stringify(EV_KEY) ":" __stringify(KEY_HOME) ":360:1330:240:60" "\n" \
-				__stringify(EV_KEY) ":" __stringify(KEY_MENU)   ":630:1330:180:60" "\n" ;
-
-	return snprintf(buf, strnlen(virtual_keys, MAX_LEN) + 1 , "%s",	virtual_keys);
-}
-
-static struct kobj_attribute wTP_virtual_keys_attr = {
-	.attr = {
-		.name = "virtualkeys.synaptics_rmi4_i2c",
-		.mode = S_IRUGO,
-	},
-	.show = &wTP_virtual_keys_register,
-};
-
-static struct attribute *virtual_key_properties_attrs[] = {
-	&wTP_virtual_keys_attr.attr,
-	NULL
-};
-
-static struct attribute_group virtual_key_properties_attr_group = {
-	.attrs = virtual_key_properties_attrs,
-};
-
-struct kobject *virtual_key_properties_kobj = NULL;
-//ASUS_BSP Freeman: add for creating virtual_key_maps ---
 
  /**
  * synaptics_rmi4_f11_init()
@@ -2394,8 +2123,6 @@ static int synaptics_rmi4_query_device(struct synaptics_rmi4_data *rmi4_data)
 	struct synaptics_rmi4_device_info *rmi;
 
 	rmi = &(rmi4_data->rmi4_mod_info);
-
-	INIT_LIST_HEAD(&rmi->support_fn_list);
 
 	/* Scan the page description tables of the pages to service */
 	for (page_number = 0; page_number < PAGES_TO_SERVICE; page_number++) {
@@ -2998,18 +2725,13 @@ static int synaptics_rmi4_gpio_configure(struct synaptics_rmi4_data *rmi4_data,
 
 		if (gpio_is_valid(rmi4_data->board->reset_gpio)) {
 			/* configure touchscreen reset out gpio */
-			if(!rmi4_data->reset_gpio_get)
-			{
-				retval = gpio_request(rmi4_data->board->reset_gpio,
-						"rmi4_reset_gpio");
-				if (retval) {
-					dev_err(&rmi4_data->i2c_client->dev,
-						"unable to request gpio [%d]\n",
-						rmi4_data->board->reset_gpio);
-					goto err_irq_gpio_dir;
-				}
-				
-				rmi4_data->reset_gpio_get = true;
+			retval = gpio_request(rmi4_data->board->reset_gpio,
+					"rmi4_reset_gpio");
+			if (retval) {
+				dev_err(&rmi4_data->i2c_client->dev,
+					"unable to request gpio [%d]\n",
+					rmi4_data->board->reset_gpio);
+				goto err_irq_gpio_dir;
 			}
 
 			retval = gpio_direction_output(rmi4_data->board->\
@@ -3021,8 +2743,6 @@ static int synaptics_rmi4_gpio_configure(struct synaptics_rmi4_data *rmi4_data,
 				goto err_reset_gpio_dir;
 			}
 
-			gpio_set_value(rmi4_data->board->reset_gpio, 0);
-			usleep(RMI4_GPIO_SLEEP_LOW_US);
 			gpio_set_value(rmi4_data->board->reset_gpio, 1);
 			msleep(rmi4_data->board->reset_delay);
 		} else
@@ -3033,111 +2753,36 @@ static int synaptics_rmi4_gpio_configure(struct synaptics_rmi4_data *rmi4_data,
 		if (rmi4_data->board->disable_gpios) {
 			if (gpio_is_valid(rmi4_data->board->irq_gpio))
 				gpio_free(rmi4_data->board->irq_gpio);
-//			if (gpio_is_valid(rmi4_data->board->reset_gpio)) {
-//				/*
-//				 * This is intended to save leakage current
-//				 * only. Even if the call(gpio_direction_input)
-//				 * fails, only leakage current will be more but
-//				 * functionality will not be affected.
-//				 */
-//				retval = gpio_direction_input(rmi4_data->
-//							board->reset_gpio);
-//				if (retval) {
-//					dev_err(&rmi4_data->i2c_client->dev,
-//					"unable to set direction for gpio "
-//					"[%d]\n", rmi4_data->board->irq_gpio);
-//				}
-//				gpio_free(rmi4_data->board->reset_gpio);
-//			}
+			if (gpio_is_valid(rmi4_data->board->reset_gpio)) {
+				/*
+				 * This is intended to save leakage current
+				 * only. Even if the call(gpio_direction_input)
+				 * fails, only leakage current will be more but
+				 * functionality will not be affected.
+				 */
+				retval = gpio_direction_input(rmi4_data->
+							board->reset_gpio);
+				if (retval) {
+					dev_err(&rmi4_data->i2c_client->dev,
+					"unable to set direction for gpio "
+					"[%d]\n", rmi4_data->board->irq_gpio);
+				}
+				gpio_free(rmi4_data->board->reset_gpio);
+			}
 		}
 
 		return 0;
 	}
 
 err_reset_gpio_dir:
-	if (gpio_is_valid(rmi4_data->board->reset_gpio)) {
-		rmi4_data->reset_gpio_get = false;
+	if (gpio_is_valid(rmi4_data->board->reset_gpio))
 		gpio_free(rmi4_data->board->reset_gpio);
-	}
 err_irq_gpio_dir:
 	if (gpio_is_valid(rmi4_data->board->irq_gpio))
 		gpio_free(rmi4_data->board->irq_gpio);
 err_irq_gpio_req:
 	return retval;
 }
-
-//ASUS_BSP Freeman for TouchDriver stress test ++++
-#ifdef CONFIG_I2C_STRESS_TEST
-
-#include <linux/i2c_testcase.h>
-#define I2C_TEST_FAIL_TOUCH_READ_I2C (-1)
-
-static int TestTouchDriverID(struct i2c_client *apClient)
-{
-	int lnResult = I2C_TEST_PASS;
-	unsigned char buf_i2c[1];
-	const struct device  *dev=&apClient->dev;
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-
-//	i2c_log_in_test_case("TestA500KLTouchID++\n");
-
-	lnResult = synaptics_rmi4_i2c_read(rmi4_data, 0x0A, buf_i2c, 1);
-
-	printk(KERN_INFO "[TEST] lnResult = %d \n", lnResult);
-
-	if(lnResult < 0){
-		i2c_log_in_test_case("Fail to get Touch id\n");
-		lnResult = I2C_TEST_FAIL_TOUCH_READ_I2C;
-	}
-	else
-	{
-	    i2c_log_in_test_case("Get chip id=0x%x\n",buf_i2c[0]);
-		lnResult = I2C_TEST_PASS;
-	}
-
-//	i2c_log_in_test_case("TestA500KLTouchID--\n");
-
-	return lnResult;
-};
-
-static struct i2c_test_case_info gTouchTestCaseInfo[] =
-{
-	__I2C_STRESS_TEST_CASE_ATTR(TestTouchDriverID),
-};
-
-#endif
-//ASUS_BSP Freeman for TouchDriver stress test ----
-
-//ASUS_BSP Freeman re-probe ++++
-static int synaptics_rmi4_reprobe_device(struct synaptics_rmi4_data *rmi4_data)
-{
-	int retval = 0;
-
-	retval = synaptics_rmi4_query_device(rmi4_data);
-	if (retval < 0) {
-		dev_err(&rmi4_data->i2c_client->dev,
-				"%s: Failed to query device\n",
-				__func__);
-		return retval;
-	}
-
-#ifdef REPORT_2D_W
-	input_set_abs_params(rmi4_data->input_dev,
-			ABS_MT_TOUCH_MAJOR, 0,
-			rmi4_data->max_touch_width, 0, 0);
-	input_set_abs_params(rmi4_data->input_dev,
-			ABS_MT_TOUCH_MINOR, 0,
-			rmi4_data->max_touch_width, 0, 0);
-#endif
-
-#ifdef TYPE_B_PROTOCOL
-	input_mt_init_slots(rmi4_data->input_dev,
-			rmi4_data->num_of_fingers);
-#endif
-
-return retval;
-}
-//ASUS_BSP Freeman re-probe ----
 
  /**
  * synaptics_rmi4_probe()
@@ -3167,7 +2812,6 @@ static int __devinit synaptics_rmi4_probe(struct i2c_client *client,
 	struct synaptics_rmi4_platform_data *platform_data =
 			client->dev.platform_data;
 	struct dentry *temp;
-	int rc = 0;
 
 	if (!i2c_check_functionality(client->adapter,
 			I2C_FUNC_SMBUS_BYTE_DATA)) {
@@ -3232,7 +2876,6 @@ static int __devinit synaptics_rmi4_probe(struct i2c_client *client,
 	rmi4_data->i2c_write = synaptics_rmi4_i2c_write;
 	rmi4_data->irq_enable = synaptics_rmi4_irq_enable;
 	rmi4_data->reset_device = synaptics_rmi4_reset_device;
-	rmi4_data->reprobe_device = synaptics_rmi4_reprobe_device;
 
 	rmi4_data->flip_x = rmi4_data->board->x_flip;
 	rmi4_data->flip_y = rmi4_data->board->y_flip;
@@ -3258,14 +2901,6 @@ static int __devinit synaptics_rmi4_probe(struct i2c_client *client,
 #ifdef INPUT_PROP_DIRECT
 	set_bit(INPUT_PROP_DIRECT, rmi4_data->input_dev->propbit);
 #endif
-
-//ASUS_BSP Freeman: add for creating virtual_key_maps +++
-	set_bit(KEY_MENU, rmi4_data->input_dev->keybit);
-	set_bit(KEY_BACK, rmi4_data->input_dev->keybit);
-	set_bit(KEY_HOME, rmi4_data->input_dev->keybit);
-//ASUS_BSP Freeman: add for creating virtual_key_maps ---
-
-	rmi4_data->reset_gpio_get = false;
 
 	retval = synaptics_rmi4_regulator_configure(rmi4_data, true);
 	if (retval < 0) {
@@ -3446,33 +3081,6 @@ static int __devinit synaptics_rmi4_probe(struct i2c_client *client,
 		return retval;
 	}
 
-//ASUS_BSP Freeman: add for creating virtual_key_maps +++
-	if(virtual_key_properties_kobj == NULL){
-		virtual_key_properties_kobj = kobject_create_and_add("board_properties", NULL);
-	if (virtual_key_properties_kobj)
-		rc = sysfs_create_group(virtual_key_properties_kobj, &virtual_key_properties_attr_group);
-	if (!virtual_key_properties_kobj || rc)
-		pr_err("[touch_synaptics] failed to create wTP virtual key map!\n");
-	}
-//ASUS_BSP Freeman: add for creating virtual_key_maps ---
-
-//ASUS BSP Freeman: /sys/class/switch/touch +++++
-	pfs_switch_touch.name="touch";
-	pfs_switch_touch.print_name=fwu_sysfs_fw_name_show;
-	pfs_switch_touch.print_state=fwu_sysfs_touch_status_show;
-	retval=switch_dev_register(&pfs_switch_touch);
-
-	if (retval < 0){
-		dev_err(&client->dev,"%s:  Unable to register switch dev! \n",__func__);
-	}
-//ASUS BSP Freeman: /sys/class/switch/touch ------
-
-//ASUS_BSP Freeman for TouchDriver stress test ++++
-#ifdef CONFIG_I2C_STRESS_TEST
-	i2c_add_test_case(client, "A500KL_TouchDriver", ARRAY_AND_SIZE(gTouchTestCaseInfo));
-#endif
-//ASUS_BSP Freeman for TouchDriver stress test ---
-
 	return retval;
 
 err_sysfs:
@@ -3506,10 +3114,8 @@ err_register_input:
 	}
 	mutex_unlock(&rmi->support_fn_list_mutex);
 err_free_gpios:
-	if (gpio_is_valid(rmi4_data->board->reset_gpio)) {
-		rmi4_data->reset_gpio_get = false;
+	if (gpio_is_valid(rmi4_data->board->reset_gpio))
 		gpio_free(rmi4_data->board->reset_gpio);
-	}
 	if (gpio_is_valid(rmi4_data->board->irq_gpio))
 		gpio_free(rmi4_data->board->irq_gpio);
 err_gpio_config:
@@ -3577,10 +3183,8 @@ static int __devexit synaptics_rmi4_remove(struct i2c_client *client)
 	}
 	mutex_unlock(&rmi->support_fn_list_mutex);
 
-	if (gpio_is_valid(rmi4_data->board->reset_gpio)) {
-		rmi4_data->reset_gpio_get = false;
+	if (gpio_is_valid(rmi4_data->board->reset_gpio))
 		gpio_free(rmi4_data->board->reset_gpio);
-	}
 	if (gpio_is_valid(rmi4_data->board->irq_gpio))
 		gpio_free(rmi4_data->board->irq_gpio);
 
@@ -4066,6 +3670,14 @@ static int synaptics_rmi4_check_configuration(struct synaptics_rmi4_data
 {
 	return 0;
 };
+static int synaptics_rmi4_suspend(struct device *dev);
+{
+	return 0;
+}
+static int synaptics_rmi4_resume(struct device *dev);
+{
+	return 0;
+}
 #endif
 
 static const struct i2c_device_id synaptics_rmi4_id_table[] = {
