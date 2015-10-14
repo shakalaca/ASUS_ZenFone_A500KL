@@ -1103,6 +1103,13 @@ static int kionix_accel_enable(struct kionix_accel_driver *acceld)
 	int err = 0;
 	long remaining;
 
+	// ASUS_BSP +++ yan_sun "[A500KL][Sensor][NA][Fix] Hal will enabled G-Sensor again after system_server crash."
+	if(atomic_read(&acceld->accel_enabled) > 0){
+		printk("[Kionix] kionix_accel_enable accel_enabled = %d, return!!\n",atomic_read(&acceld->accel_enabled));
+		return 0;
+	}
+	// ASUS_BSP --- yan_sun "[A500KL][Sensor][NA][Fix] Hal will enabled G-Sensor again after system_server crash."
+
 // ASUS_BSP +++ yan_sun "[A500KL][Sensor][NA][Spec] Add power_on_init when hal enable gsensor"
 	printk("Kionix kionix_accel_grp4_power_on_init when HAL set gsensor enable=1!\n");
 	err = kionix_accel_grp4_power_on_init(acceld);
@@ -1138,6 +1145,7 @@ static int kionix_accel_enable(struct kionix_accel_driver *acceld)
 	}
 
 	atomic_inc(&acceld->accel_enabled);
+	printk("[Kionix] kionix_accel_enable-- accel_enabled = %d\n",atomic_read(&acceld->accel_enabled));
 
 exit:
 	mutex_unlock(&acceld->mutex_earlysuspend);
@@ -1154,10 +1162,12 @@ static int kionix_accel_disable(struct kionix_accel_driver *acceld)
 	atomic_set(&acceld->accel_suspend_continue, 1);
 
 	if(atomic_read(&acceld->accel_enabled) > 0){
+		printk("[Kionix]+++ kionix_accel_disable accel_enabled = %d\n",atomic_read(&acceld->accel_enabled));
 		if(atomic_dec_and_test(&acceld->accel_enabled)) {
 			if(atomic_read(&acceld->accel_enable_resume) > 0)
 				atomic_set(&acceld->accel_enable_resume, 0);
 			err = acceld->kionix_accel_standby(acceld);
+			printk("[Kionix]--- kionix_accel_disable accel_enabled = %d\n",atomic_read(&acceld->accel_enabled));
 			if (err < 0) {
 				KMSGERR(&acceld->client->dev, \
 						"%s: kionix_accel_standby returned err = %d\n", __func__, err);

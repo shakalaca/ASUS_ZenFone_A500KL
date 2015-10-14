@@ -1157,9 +1157,7 @@ static void msm_cpp_do_timeout_work(struct work_struct *work)
 	if (second_frame != NULL) {
 		cpp_timers[set_timer_idx].data.processed_frame = second_frame;
 		cpp_timers[set_timer_idx].used = 1;
-		pr_err("ReInstalling cpp_timer %d\n", set_timer_idx);
-		setup_timer(&cpp_timers[set_timer_idx].cpp_timer,
-			cpp_timer_callback, (unsigned long)&cpp_timers[0]);
+
 		pr_err("Starting timer to fire in %d ms. (jiffies=%lu)\n",
 			CPP_CMD_TIMEOUT_MS, jiffies);
 		ret = mod_timer(&cpp_timers[set_timer_idx].cpp_timer,

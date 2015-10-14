@@ -5236,22 +5236,10 @@ static void __setup_per_zone_wmarks(void)
 			zone->watermark[WMARK_MIN] = min;
 		}
 
-		//zone->watermark[WMARK_LOW] = min_wmark_pages(zone) +
-                                        //low + (min >> 2);
-                //zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) +
-                                        //low + (min >> 1);
-        if(DDR_SIZE_1G == oem_hardware_ddr_size())
-        {
-			zone->watermark[WMARK_LOW] = (min_wmark_pages(zone) << 2) +low;
-			zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) + (min << 2) + low;
-		}
-		else
-		{
-			zone->watermark[WMARK_LOW] = min_wmark_pages(zone) +
+		zone->watermark[WMARK_LOW] = min_wmark_pages(zone) +
                                         low + (min >> 2);
-			zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) +
+                zone->watermark[WMARK_HIGH] = min_wmark_pages(zone) +
                                         low + (min >> 1);
-		}
 
 		setup_zone_migrate_reserve(zone);
 		spin_unlock_irqrestore(&zone->lock, flags);

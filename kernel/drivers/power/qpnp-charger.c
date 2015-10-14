@@ -1080,7 +1080,7 @@ qpnp_chg_charge_en(struct qpnp_chg_chip *chip, int enable)
 #endif
 	}
 	else{
-		if (chip->chg_done){
+		if (chip->chg_done && qpnp_chg_is_boost_en_set(the_chip) == 0){
 			asus_fsm_chargingstop(CHARGING_DONE);
 		}
 		else{
@@ -1286,7 +1286,7 @@ qpnp_chg_usb_chg_gone_irq_handler(int irq, void *_chip)
 	if (rc)
 		pr_err("failed to read usb_chgpth_sts rc=%d\n", rc);
 
-	pr_debug("chg_gone triggered\n");
+	printk("chg_gone triggered\n");
 	if ((qpnp_chg_is_usb_chg_plugged_in(chip)
 			|| qpnp_chg_is_dc_chg_plugged_in(chip))
 			&& (usb_sts & CHG_GONE_IRQ)) {
@@ -2127,7 +2127,7 @@ get_prop_batt_status(struct qpnp_chg_chip *chip)
 	u8 chgr_sts, bat_if_sts;
 
 	if ((qpnp_chg_is_usb_chg_plugged_in(chip) ||
-		qpnp_chg_is_dc_chg_plugged_in(chip)) && chip->chg_done) {
+		qpnp_chg_is_dc_chg_plugged_in(chip)) && chip->chg_done && qpnp_chg_is_boost_en_set(the_chip) == 0) {
 		return POWER_SUPPLY_STATUS_FULL;
 	}
 
@@ -2212,6 +2212,8 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 	union power_supply_propval ret = {0,};
 	int battery_status, bms_status, soc, charger_in;
 
+	int asus_capacity = asus_bat_report_phone_capacity(100);
+
 	if (chip->fake_battery_soc >= 0)
 		return chip->fake_battery_soc;
 
@@ -2230,15 +2232,15 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 			qpnp_chg_is_dc_chg_plugged_in(chip);
 
 		if (battery_status != POWER_SUPPLY_STATUS_CHARGING
-				&& bms_status != POWER_SUPPLY_STATUS_CHARGING
+				//&& bms_status != POWER_SUPPLY_STATUS_CHARGING
 				&& charger_in
 				//&& !chip->bat_is_cool
 				&& !chip->bat_is_warm
 				&& !chip->resuming_charging
 				&& !chip->charging_disabled
 				&& chip->soc_resume_limit
-				&& soc <= chip->soc_resume_limit) {
-			pr_debug("resuming charging at %d%% soc\n", soc);
+				&& (soc <= chip->soc_resume_limit ||asus_capacity<=99)) {
+			pr_info("resuming charging at %d%% soc\n", soc);
 			chip->resuming_charging = true;
 			qpnp_chg_irq_wake_enable(&chip->chg_fastchg);
 			qpnp_chg_set_appropriate_vbatdet(chip);
@@ -4869,7 +4871,8 @@ bool pm8226_is_full(void)
 		if(qpnp_charger_probe_flag == true)
 	{
 		if ((qpnp_chg_is_usb_chg_plugged_in(the_chip) ||
-			qpnp_chg_is_dc_chg_plugged_in(the_chip)) && the_chip->chg_done) {
+			qpnp_chg_is_dc_chg_plugged_in(the_chip)) && the_chip->chg_done
+			&& qpnp_chg_is_boost_en_set(the_chip) == 0) {
 			return true;
 		}
 		else{
@@ -4915,6 +4918,10 @@ EXPORT_SYMBOL(pm8226_eoc_work);
 extern void pm8226_register_usb(void);
 #endif
 //ASUS_BSP frank_tao ---
+int is_boost_enable(void)
+{
+	return qpnp_chg_is_boost_en_set(the_chip);
+}
 static int __devinit
 qpnp_charger_probe(struct spmi_device *spmi)
 {

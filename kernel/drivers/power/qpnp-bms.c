@@ -3547,6 +3547,11 @@ static void load_shutdown_data(struct qpnp_bms_chip *chip)
 	shutdown_soc = read_shutdown_soc(chip);
 	invalid_stored_soc = (shutdown_soc == SOC_INVALID);
 
+//Frank: skip shutdown_soc workaround for ATD +++
+#ifdef ASUS_FACTORY_BUILD
+	invalid_stored_soc = true;
+#endif
+//Frank: skip shutdown_soc workaround for ATD ---
 	/*
 	 * Do a quick run of SoC calculation to find whether the shutdown soc
 	 * is close enough.
@@ -4381,12 +4386,18 @@ void calculate_FCC_and_RM(int * data)
 	data[1] = g_bms_ocv_charge - g_bms_cc - g_bms_uuc;
 }
 //ASUS_BSP frank_tao ---
+#ifdef ASUS_FACTORY_BUILD
+extern bool qpnp_charger_probe_flag;
+extern bool SW_charging_enable;
+extern void pm8226_chg_enable_charging(bool enable);
+extern void pm8226_chg_usb_suspend_enable(int enable);
+#endif
 static int __devinit qpnp_bms_probe(struct spmi_device *spmi)
 {
 	struct qpnp_bms_chip *chip;
 	bool warm_reset;
 	int rc, vbatt;
-
+	pr_info("start!\n");
 	chip = devm_kzalloc(&spmi->dev, sizeof(struct qpnp_bms_chip),
 			GFP_KERNEL);
 
@@ -4492,7 +4503,16 @@ static int __devinit qpnp_bms_probe(struct spmi_device *spmi)
 
 	dev_set_drvdata(&spmi->dev, chip);
 	device_init_wakeup(&spmi->dev, 1);
-
+//Frank: disable input current workaround for ATD +++
+#ifdef ASUS_FACTORY_BUILD
+	if(qpnp_charger_probe_flag == true)
+	{
+		SW_charging_enable = false;
+		pm8226_chg_enable_charging(false);
+		pm8226_chg_usb_suspend_enable(1);
+	}
+#endif
+//Frank: disable input current workaround for ATD ---
 	load_shutdown_data(chip);
 
 	if (chip->enable_fcc_learning) {
@@ -4569,6 +4589,16 @@ static int __devinit qpnp_bms_probe(struct spmi_device *spmi)
 			get_prop_bms_capacity(chip), vbatt, chip->last_ocv_uv,
 			chip->r_sense_uohm, warm_reset);
 
+//Frank: enable input current workaround for ATD +++
+#ifdef ASUS_FACTORY_BUILD
+	if(qpnp_charger_probe_flag == true)
+	{
+		SW_charging_enable = true;
+		pm8226_chg_enable_charging(true);
+		pm8226_chg_usb_suspend_enable(0);
+	}
+#endif
+//Frank: enable input current workaround for ATD ---
 	//ASUS_BSP frank_tao +++
 	g_qpnp_bms_chip = chip;
 	create_bat_current_proc();

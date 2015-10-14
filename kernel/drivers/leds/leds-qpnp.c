@@ -230,7 +230,7 @@
 #define ASUS_FLASH_BRIGHTNESS_BUFF_SIZE 10
 
 
-struct device	*flash_brightness_dev;
+struct led_classdev *flash_brightness_dev;
 
 /**
  * enum qpnp_leds - QPNP supported led ids
@@ -1543,7 +1543,7 @@ static enum led_brightness qpnp_led_get(struct led_classdev *led_cdev)
 	struct qpnp_led_data *led;
 
 	led = container_of(led_cdev, struct qpnp_led_data, cdev);
-
+	printk("%s: name %s brightness %d\n",__func__,led_cdev->name,led->cdev.brightness);
 	return led->cdev.brightness;
 }
 
@@ -1754,13 +1754,7 @@ static ssize_t asus_flash_led_test(struct device *dev,
 		led->flash_cfg->second_addr = 0;
 		led->cdev.brightness = 800;
 	} else {
-		if (led->flash_cfg->torch_enable == true) {
-			led->flash_cfg->torch_enable = true;
-			led->cdev.brightness = 0;
-		} else {
-			led->flash_cfg->torch_enable = false;
-			led->cdev.brightness = 0;
-		}
+		led->cdev.brightness = 0;
 	}
 	rc = qpnp_flash_set(led);
 	return count;
@@ -3304,7 +3298,7 @@ static int __devinit qpnp_leds_probe(struct spmi_device *spmi)
 	node = spmi->dev.of_node;
 	if (node == NULL)
 		return -ENODEV;
-
+	printk("%s E\n",__func__);
 	temp = NULL;
 	while ((temp = of_get_next_child(node, temp)))
 		num_leds++;
@@ -3341,6 +3335,14 @@ static int __devinit qpnp_leds_probe(struct spmi_device *spmi)
 
 		rc = of_property_read_string(temp, "linux,name",
 			&led->cdev.name);
+
+		printk("%s: label %s name %s\n",__func__,led_label,led->cdev.name);
+
+		if (strncmp(led->cdev.name, "led:flash_torch", sizeof("led:flash_torch"))== 0){
+			printk("This is %s\n",led->cdev.name);
+			flash_brightness_dev = &(led->cdev);
+			flash_brightness_create_proc_file();
+		}
 		if (rc < 0) {
 			dev_err(&led->spmi_dev->dev,
 				"Failure reading led name, rc = %d\n", rc);
@@ -3537,10 +3539,7 @@ if(!strcmp(led->cdev.name, "wled-backlight")){
 		parsed_leds++;
 	}
 	dev_set_drvdata(&spmi->dev, led_array);
-	if (strncmp(led_label, "flash", sizeof("flash"))== 0){
-		flash_brightness_dev = &(spmi->dev);
-		flash_brightness_create_proc_file();
-	}
+
 	printk("%s X\n",__func__);
 	return 0;
 
@@ -3622,12 +3621,12 @@ static int __devexit qpnp_leds_remove(struct spmi_device *spmi)
 static ssize_t asus_flash_brightness_read_proc(char *page, char **start, off_t off, int count,
 	int *eof, void *data)
 {
-	struct led_classdev *led_cdev = dev_get_drvdata(flash_brightness_dev);
+	struct led_classdev *led_cdev = flash_brightness_dev;
 	printk("%s E\n",__func__);
 
-	if (led_cdev->brightness)
+	if (led_cdev->brightness_get)
 		led_cdev->brightness = led_cdev->brightness_get(led_cdev);
-	printk("%s X: brightness %d\n",__func__,led_cdev->brightness);
+	printk("%s X:name %s brightness %d\n",__func__,led_cdev->name,led_cdev->brightness);
 	return snprintf(page, 10, "%d\n", led_cdev->brightness);
 }
 
@@ -3639,8 +3638,8 @@ static ssize_t asus_flash_brightness_write_proc(struct file *filp, const char __
 	int rc = 0;
 	int ret = 0;
 	struct qpnp_led_data *led;
-	struct led_classdev *led_cdev = dev_get_drvdata(flash_brightness_dev);
-
+	struct led_classdev *led_cdev = flash_brightness_dev;
+	printk("%s: name %s \n",__func__,led_cdev->name);
 	led = container_of(led_cdev, struct qpnp_led_data,cdev);
 
 	if (len > 5)
@@ -3683,7 +3682,6 @@ static ssize_t asus_flash_brightness_write_proc(struct file *filp, const char __
 		}
 	}else if(state == 0){
 		led_flag = 0;
-		led->flash_cfg->torch_enable = false;
 		led->cdev.brightness = 0;
 	}
 	rc = qpnp_flash_set(led);

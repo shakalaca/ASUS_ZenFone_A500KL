@@ -31,6 +31,7 @@
 #define DEFAULT_PS_THRESHOLD_lo	6
 #define DEFAULT_PS_THRESHOLD_hi 14
 
+
 enum cm36283_sensors {
 	PS_SENSOR=0,
 	ALS_SENSOR,

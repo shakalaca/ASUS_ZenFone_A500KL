@@ -125,6 +125,12 @@ config IMX111
 	---help---
 		ASUS 8M sensor
 
+config IMX219
+	bool "Sensor imx219(BAYER 8MP)"
+	depends on MSMB_CAMERA
+	---help---
+		ASUS 8M sensor
+
 config MSM_V4L2_VIDEO_OVERLAY_DEVICE
 	tristate "Qualcomm MSM V4l2 video overlay device"
 	---help---

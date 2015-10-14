@@ -66,6 +66,7 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 				led_trigger_event(fctrl->flash_trigger[i], 0);
 		if (fctrl->torch_trigger)
 			led_trigger_event(fctrl->torch_trigger, 0);
+		pr_err("MSM_CAMERA_LED_OFF\n");
 		break;
 
 	case MSM_CAMERA_LED_LOW:

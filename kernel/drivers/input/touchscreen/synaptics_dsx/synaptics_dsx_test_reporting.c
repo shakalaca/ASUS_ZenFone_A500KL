@@ -93,6 +93,34 @@ struct device_attribute dev_attr_##propname =\
 		concat(synaptics_rmi4_f54, _##propname##_show),\
 		synaptics_rmi4_store_error);
 
+#ifdef ASUS_FACTORY_BUILD
+#define store_prototype(propname)\
+static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
+		struct device *dev,\
+		struct device_attribute *attr,\
+		const char *buf, size_t count);\
+\
+struct device_attribute dev_attr_##propname =\
+		__ATTR(propname, S_IWUGO,\
+		synaptics_rmi4_show_error,\
+		concat(synaptics_rmi4_f54, _##propname##_store));
+
+#define show_store_prototype(propname)\
+static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
+		struct device *dev,\
+		struct device_attribute *attr,\
+		char *buf);\
+\
+static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
+		struct device *dev,\
+		struct device_attribute *attr,\
+		const char *buf, size_t count);\
+\
+struct device_attribute dev_attr_##propname =\
+		__ATTR(propname, (S_IRUGO | S_IWUGO),\
+		concat(synaptics_rmi4_f54, _##propname##_show),\
+		concat(synaptics_rmi4_f54, _##propname##_store));
+#else
 #define store_prototype(propname)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
 		struct device *dev,\
@@ -119,7 +147,7 @@ struct device_attribute dev_attr_##propname =\
 		__ATTR(propname, (S_IRUGO | S_IWUSR | S_IWGRP),\
 		concat(synaptics_rmi4_f54, _##propname##_show),\
 		concat(synaptics_rmi4_f54, _##propname##_store));
-
+#endif
 #define simple_show_func(rtype, propname, fmt)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
 		struct device *dev,\

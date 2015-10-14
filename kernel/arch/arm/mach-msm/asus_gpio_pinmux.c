@@ -12,6 +12,7 @@
 #include "a500kl_er2_gpio_pinmux.h"
 #include "a500kl_er3_gpio_pinmux.h"
 #include "a500kl_mp_gpio_pinmux.h"
+#include "a500kl_mp2_gpio_pinmux.h"
 /////////////////////////////////////////////////////////////////////
 //define asus gpio var.A600KL_EVB
 
@@ -66,10 +67,15 @@ int __init device_gpio_init(void)
 		msm_gpiomux_install(a500kl_mp_msm8926_gpio_configs,
 		ARRAY_SIZE(a500kl_mp_msm8926_gpio_configs));
         break;
+	case A500KL_MP2:
+		printk("[KERNEL] a500kl gpio config table = MP2\n");
+		msm_gpiomux_install(a500kl_mp2_msm8926_gpio_configs,
+		ARRAY_SIZE(a500kl_mp2_msm8926_gpio_configs));
+        break;
 	default:
-		printk(KERN_ERR "[ERROR] There is NO valid hardware ID, use A500KL MP GPIO TABLE\n");
-		msm_gpiomux_install(a500kl_mp_msm8926_gpio_configs,
-		ARRAY_SIZE(a500kl_mp_msm8926_gpio_configs));
+		printk(KERN_ERR "[ERROR] There is NO valid hardware ID, use A500KL MP2 GPIO TABLE\n");
+		msm_gpiomux_install(a500kl_mp2_msm8926_gpio_configs,
+		ARRAY_SIZE(a500kl_mp2_msm8926_gpio_configs));
 	break;
 	}
 

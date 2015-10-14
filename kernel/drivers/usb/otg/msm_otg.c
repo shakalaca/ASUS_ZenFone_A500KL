@@ -4015,6 +4015,7 @@ static void msm_otg_set_vbus_state(int online)
 		(!test_bit(B_SESS_VLD, &motg->inputs) && !online)){
 		if(init){
 			pr_debug("PMIC: BSV already set to %d\n",online);
+			return;
 		}
 	}
 //ASUS_BSP--- "[USB][NA][Spec] Add ASUS charger mode support"

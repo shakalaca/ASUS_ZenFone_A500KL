@@ -273,7 +273,6 @@ int mdss_debug_register_base(const char *name, void __iomem *base,
 
 	if (name)
 		prefix_len = snprintf(dn, sizeof(dn), "%s_", name);
-	create_lcd_unique_id_proc_file();
 
 	strlcpy(dn + prefix_len, "off", sizeof(dn) - prefix_len);
 	ent_off = debugfs_create_file(dn, 0644, mdd->root, dbg, &mdss_off_fops);

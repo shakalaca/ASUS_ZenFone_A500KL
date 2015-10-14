@@ -41,7 +41,7 @@ extern int IsBalanceTest(void);
 #include <linux/switch.h>
 //ASUS BSP Frank: /sys/class/switch/battery -----
 extern int64_t read_BatID(void);
-
+extern int is_boost_enable(void);
 #ifdef CONFIG_EEPROM_PADSTATION 
 
 static int IsBalanceMode = 1;//default 1.  0:PowerbankMode, 1:balanceMode, 2:ForcePowerBankMode
@@ -3560,6 +3560,7 @@ static void DecideIsFull(struct AXC_BatteryService *_this,int nowGaugeCap,bool h
 			|| CHARGING_FULL_KEEP_STATE==balance_this->fsmState
 			|| CHARGING_FULL_KEEP_STOP_STATE==balance_this->fsmState)
 		{
+			pr_info("fsm_to_full!\n");
 			force_report_100 = false;
 			DoAfterDecideFull(_this);
 		}
@@ -3835,7 +3836,7 @@ static void AXC_BatteryService_reportPropertyCapacity(struct AXC_BatteryService 
                                       maxMah,
                                       intervalSinceLastUpdate);
 //Eason add to check full & 100%+++
-	if(true==_this->BatteryService_IsFULL && A66_capacity != 100)
+	if(true==_this->BatteryService_IsFULL && ( A66_capacity != 100 || gBMS_Cap != 100))
 	{
         	printk("[BAT][Ser]Full but not 100 ,restart charging\n");
         	DoAfterDecideNotFull(_this);
@@ -3983,6 +3984,11 @@ static void AXC_BatteryService_reportPropertyCapacity(struct AXC_BatteryService 
 			else
 				gpCharger->EnableCharging(gpCharger,true);
 		}
+#else
+	if(A66_capacity<100&&pm8226_is_ac_usb_in()&&is_boost_enable()==0)
+	{
+		gpCharger->EnableCharging(gpCharger,true);
+	}
 #endif//#ifdef ASUS_FACTORY_BUILD
 //frank_tao: Factory5060Mode---
        		_this->callback->onServiceStatusUpdated(_this->callback);

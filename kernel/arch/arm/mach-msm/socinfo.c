@@ -31,6 +31,11 @@
 #include <mach/msm_smem.h>
 
 #include "boot_stats.h"
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+
+#include <linux/gpio.h>
+
 
 #define BUILD_ID_LENGTH 32
 #define SMEM_IMAGE_VERSION_BLOCKS_COUNT 32
@@ -545,6 +550,18 @@ socinfo_show_pcb(struct sys_device *dev,
 }
 //---ASUS BSP add for PCB-ID
 
+//ASUS BSP freeman +++ add for SKU
+static ssize_t socinfo_show_sku(struct sys_device *dev,struct sysdev_attribute *attr,char *buf)
+{
+	if (!socinfo) {
+		pr_err("%s: No socinfo found!\n", __func__);
+		return 0;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", (gpio_get_value(109)*2+gpio_get_value(108)));
+}
+//ASUS BSP freeman --- add for SKU
+
 static ssize_t
 socinfo_show_id(struct sys_device *dev,
 		struct sysdev_attribute *attr,
@@ -975,6 +992,18 @@ static struct sysdev_attribute socinfo_pcb_version_files[] = {
 };
 //---ASUS BSP add for PCB-ID
 
+//ASUS BSP freeman +++ add for SKU
+static ssize_t
+msm_get_sku_version(struct device *dev,struct device_attribute *attr,char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",(gpio_get_value(109)*2+gpio_get_value(108)));
+}
+
+static struct sysdev_attribute socinfo_sku_version_files[] = {
+	_SYSDEV_ATTR(sku_info, 0444, socinfo_show_sku, NULL),
+};
+//ASUS BSP freeman --- add for SKU
+
 static struct sysdev_attribute socinfo_v1_files[] = {
 	_SYSDEV_ATTR(id, 0444, socinfo_show_id, NULL),
 	_SYSDEV_ATTR(version, 0444, socinfo_show_version, NULL),
@@ -1118,6 +1147,11 @@ static struct device_attribute msm_soc_attr_pcb_revision =
 			msm_get_pcb_version, NULL);
 //---ASUS BSP add for PCB-ID
 
+//ASUS BSP freeman +++ add for SKU
+static struct device_attribute msm_soc_attr_sku_revision =
+	__ATTR(sku_info, S_IRUGO,msm_get_sku_version, NULL);
+//ASUS BSP freeman --- add for SKU
+
 static struct sysdev_class soc_sysdev_class = {
 	.name = "soc",
 };
@@ -1180,6 +1214,10 @@ static void __init populate_soc_sysfs_files(struct device *msm_soc_device)
 	//+++ASUS BSP add for PCB-ID
 	device_create_file(msm_soc_device, &msm_soc_attr_pcb_revision);
 	//---ASUS BSP add for PCB-ID
+
+	//ASUS BSP freeman +++ add for SKU
+	device_create_file(msm_soc_device, &msm_soc_attr_sku_revision);
+	//ASUS BSP freeman --- add for SKU
 
 	switch (legacy_format) {
 	case 8:
@@ -1313,6 +1351,11 @@ static int __init socinfo_init_sysdev(void)
 	socinfo_create_files(&soc_sys_device, socinfo_pcb_version_files,
 				ARRAY_SIZE(socinfo_pcb_version_files));
 //---ASUS BSP add for PCB-ID
+
+//ASUS BSP freeman +++ add for SKU
+	socinfo_create_files(&soc_sys_device, socinfo_sku_version_files,
+				ARRAY_SIZE(socinfo_sku_version_files));
+//ASUS BSP freeman --- add for SKU
 
 	socinfo_create_files(&soc_sys_device, socinfo_v7_files,
 				ARRAY_SIZE(socinfo_v7_files));
@@ -1554,3 +1597,160 @@ const int cpu_is_krait_v3(void)
 		return 0;
 	};
 }
+
+static void
+msm_get_boot_image_version(struct seq_file *s, int image_index, const char* image_name, bool show_oem_version)
+{
+	char *string_address;
+	char *oem_version;
+	char *qc_version;
+
+	string_address = socinfo_get_image_version_base_address();
+	if (string_address == NULL) {
+		pr_err("%s : Failed to get image version base address",
+				__func__);
+		return;
+	}
+	string_address += image_index * SMEM_IMAGE_VERSION_SINGLE_BLOCK_SIZE;
+
+	seq_printf(s, "%s: ", image_name);
+	if(show_oem_version)
+	{
+		oem_version = string_address + SMEM_IMAGE_VERSION_OEM_OFFSET;
+		seq_printf(s, "%-.32s\n", oem_version);
+	}
+	else
+	{
+		qc_version = string_address;
+		if(strlen(qc_version) >= 3 && qc_version[2] == ':')
+		{
+			qc_version += 3;
+		}
+		seq_printf(s, "%-.75s\n", qc_version);
+	}
+}
+
+#define A500KL_GPIO_MODEM_SKU0	108
+#define A500KL_GPIO_MODEM_SKU1	109
+
+static void __init update_modem_sku_info(void)
+{
+	int retval = 0;
+	HW_MODEM_SKU modem_sku_val = MODEM_SKU_MAX;
+
+	if (!gpio_is_valid(A500KL_GPIO_MODEM_SKU0) || !gpio_is_valid(A500KL_GPIO_MODEM_SKU1))
+	{
+		printk("update_modem_sku_info: Invalid gpio number.\n");
+		return;
+	}
+
+	retval = gpio_request(A500KL_GPIO_MODEM_SKU0, "update_modem_sku_info");
+	if (retval) {
+		printk("update_modem_sku_info: unable to request gpio [%d]\n", A500KL_GPIO_MODEM_SKU0);
+		return;
+	}
+
+	retval = gpio_request(A500KL_GPIO_MODEM_SKU1, "update_modem_sku_info");
+	if (retval) {
+		printk("update_modem_sku_info： unable to request gpio [%d]\n", A500KL_GPIO_MODEM_SKU1);
+		gpio_free(A500KL_GPIO_MODEM_SKU0);
+		return;
+	}
+
+	modem_sku_val = (HW_MODEM_SKU)((gpio_get_value_cansleep(A500KL_GPIO_MODEM_SKU1) << 1) | gpio_get_value_cansleep(A500KL_GPIO_MODEM_SKU0));
+	set_modem_sku_type_value(modem_sku_val);
+
+	gpio_free(A500KL_GPIO_MODEM_SKU1);
+	gpio_free(A500KL_GPIO_MODEM_SKU0);
+}
+
+static int soc_boot_info_show(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "PCB Version: 0x%X\n", (uint32_t)oem_hardware_id());
+	switch(oem_modem_sku_type())
+	{
+		case MODEM_SKU_CN:
+			seq_printf(s, "Modem SKU: CN\n");
+			break;
+		case MODEM_SKU_TW_APAC:
+			seq_printf(s, "Modem SKU: TW/APAC\n");
+			break;
+		case MODEM_SKU_EU_WW:
+			seq_printf(s, "Modem SKU: EU/WW\n");
+			break;
+		case MODEM_SKU_TAI:
+			seq_printf(s, "Modem SKU: TAI/JP\n");
+			break;
+		default:
+			seq_printf(s, "Modem SKU: Unknown\n");
+			break;
+	}
+
+	switch(oem_hardware_ddr_type())
+	{
+		case DDR_ELPIDA:
+			seq_printf(s, "LPDDR: Elpida");
+			break;
+		case DDR_HYNIX:
+			seq_printf(s, "LPDDR: Hynix");
+			break;
+		case DDR_SAMSUNG:
+			seq_printf(s, "LPDDR: Samsung");
+			break;
+		case DDR_HYNIX_LPDDR2:
+			seq_printf(s, "LPDDR: Hynix_LPDDR2");
+			break;
+		default:
+			seq_printf(s, "LPDDR: Unknown\n");
+			break;
+	}
+
+	switch(oem_hardware_ddr_size())
+	{
+		case DDR_SIZE_1G:
+			seq_printf(s, "-1G\n");
+			break;
+		case DDR_SIZE_2G:
+			seq_printf(s, "-2G\n");
+			break;
+		default:
+			seq_printf(s, "-UnknownSize\n");
+			break;
+	}
+
+	seq_printf(s, "\n%-.32s\n", socinfo_get_build_id());
+	msm_get_boot_image_version(s, 0, "SBL", true);
+	msm_get_boot_image_version(s, 1, "TZ", true);
+	msm_get_boot_image_version(s, 3, "RPM", true);
+	msm_get_boot_image_version(s, 9, "ABOOT", true);
+	msm_get_boot_image_version(s, 11, "MPSS", false);
+	msm_get_boot_image_version(s, 12, "ADSP", false);
+	msm_get_boot_image_version(s, 13, "WCNSS", false);
+	return 0;
+}
+
+static int soc_boot_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, soc_boot_info_show, NULL);
+}
+
+static const struct file_operations soc_boot_info_fops = {
+	.open		= soc_boot_info_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int __init soc_boot_info_proc_init(void)
+{
+	if(MODEM_SKU_MAX == oem_modem_sku_type())
+	{
+		update_modem_sku_info();
+	}
+
+	proc_create_data("bootinfo", S_IRUSR | S_IRGRP,
+			NULL, &soc_boot_info_fops, NULL);
+	return 0;
+}
+arch_initcall(soc_boot_info_proc_init);
+

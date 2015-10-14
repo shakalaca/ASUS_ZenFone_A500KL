@@ -7,5 +7,6 @@ obj-$(CONFIG_MSMB_CAMERA) += cci/ io/ csiphy/ csid/ actuator/ flash/ eeprom/
 obj-$(CONFIG_MSM_CAMERA_SENSOR) += msm_sensor.o
 #obj-$(CONFIG_AR0543) += ar0543_asus.o
 #obj-$(CONFIG_MN34130) += mn34130_asus.o
+obj-$(CONFIG_IMX219) += imx219_asus.o
 obj-$(CONFIG_IMX111) += imx111_asus.o
 obj-$(CONFIG_HM2056) += hm2056_asus.o

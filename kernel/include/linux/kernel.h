@@ -36,6 +36,7 @@ typedef enum
 	A500KL_ER2 	= 0x6,
 	A500KL_ER3 	= 0x7,
 	A500KL_MP 	= 0x8,
+	A500KL_MP2 	= 0x9,
 	HWID_UNKNOWN = 0xFF
 } DEVICE_HWID;
 
@@ -70,6 +71,19 @@ extern int g_user_dbg_mode;//wendy4_wang@asus.com
 
 const HW_DDR_TYPE oem_hardware_ddr_type(void);
 const HW_DDR_SIZE oem_hardware_ddr_size(void);
+
+typedef enum
+{
+	MODEM_SKU_CN = 0,
+	MODEM_SKU_TW_APAC,
+	MODEM_SKU_EU_WW,
+	MODEM_SKU_TAI,
+	
+	MODEM_SKU_MAX
+} HW_MODEM_SKU;
+
+const HW_MODEM_SKU oem_modem_sku_type(void);
+void set_modem_sku_type_value(const HW_MODEM_SKU modem_sku);
 
 // --- ASUS_BSP : add for miniporting
 

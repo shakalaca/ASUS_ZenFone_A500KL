@@ -985,6 +985,7 @@ static int __devinit mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		goto error_pan_node;
 	}
 	notify_panel_on_cmds_start(ctrl_pdata);
+	create_lcd_unique_id_proc_file();
 	create_lcd_type_proc_file();
 	cmd_cfg_cont_splash = mdss_panel_get_boot_cfg() ? true : false;
 

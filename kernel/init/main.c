@@ -213,6 +213,13 @@ static int set_hardware_id(char *str)
 		printk("Kernel HW ID = A500KL_MP\n");
 		oem_hardware_project_val = HW_PROJECT_A500KL;
 	}
+	else if ( strcmp("A500KL_MP2", str) == 0 )
+	{
+		oem_hardware_id_val = A500KL_MP2;
+		g_ASUS_hwID = A500KL_MP2;
+		printk("Kernel HW ID = A500KL_MP2\n");
+		oem_hardware_project_val = HW_PROJECT_A500KL;
+	}
 	else
 	{
 		oem_hardware_id_val = HWID_UNKNOWN;
@@ -285,6 +292,45 @@ const HW_DDR_SIZE oem_hardware_ddr_size(void)
 	return oem_hardware_ddr_size_val;
 }
 EXPORT_SYMBOL(oem_hardware_ddr_size);
+
+static HW_MODEM_SKU oem_modem_sku_type_val = MODEM_SKU_MAX;
+
+void set_modem_sku_type_value(const HW_MODEM_SKU modem_sku)
+{
+	oem_modem_sku_type_val = modem_sku;
+	printk("MODEM_SKU=%d\n", oem_modem_sku_type_val);
+}
+
+static int set_modem_sku_type(char *str)
+{
+	if(strcmp("CN", str) == 0)
+	{
+		oem_modem_sku_type_val = MODEM_SKU_CN;
+	}
+	else if(strcmp("TW_APAC", str) == 0)
+	{
+		oem_modem_sku_type_val = MODEM_SKU_TW_APAC;
+	}
+	else if(strcmp("EU_WW", str) == 0)
+	{
+		oem_modem_sku_type_val = MODEM_SKU_EU_WW;
+	}
+	else if(strcmp("TAI", str) == 0)
+	{
+		oem_modem_sku_type_val = MODEM_SKU_TAI;
+	}
+
+	printk("MODEM_SKU=%d\n", oem_modem_sku_type_val);
+
+    return 0;
+}
+__setup("MODEM_SKU=", set_modem_sku_type);
+
+const HW_MODEM_SKU oem_modem_sku_type(void)
+{
+	return oem_modem_sku_type_val;
+}
+EXPORT_SYMBOL(oem_modem_sku_type);
 
 //+++ ASUS_BSP Jorney_dong: enable JB charger mode
 #if defined(ASUS_CHARGING_MODE) && !defined(ASUS_FACTORY_BUILD)

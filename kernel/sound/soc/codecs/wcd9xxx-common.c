@@ -828,7 +828,7 @@ static void wcd9xxx_clsh_state_ear(struct snd_soc_codec *codec,
 		dev_dbg(codec->dev, "%s: stub fallback to ear\n", __func__);
 		wcd9xxx_set_fclk_put_ncp(codec, clsh_d, NCP_FCLK_LEVEL_8);
 		wcd9xxx_enable_buck(codec, clsh_d, false);
-		wcd9xxx_clsh_comp_req(codec, clsh_d, CLSH_COMPUTE_EAR, true);
+		wcd9xxx_clsh_comp_req(codec, clsh_d, CLSH_COMPUTE_EAR, false);//when close earpiece,disable EARPA_EN.
 		wcd9xxx_chargepump_request(codec, false);
 		wcd9xxx_enable_clsh_block(codec, clsh_d, false);
 	}

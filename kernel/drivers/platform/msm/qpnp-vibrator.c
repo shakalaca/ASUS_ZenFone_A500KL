@@ -58,7 +58,6 @@ static int qpnp_vib_read_u8(struct qpnp_vib *vib, u8 *data, u16 reg)
 	rc = spmi_ext_register_readl(vib->spmi->ctrl, vib->spmi->sid,
 							reg, data, 1);
 	if (rc < 0){
-		pr_info("[Vibrator]: qpnp_vib_read_u8 Error, rc < 0\n");
 		dev_err(&vib->spmi->dev,
 			"Error reading address: %X - ret %X\n", reg, rc);
 	}
@@ -71,7 +70,6 @@ static int qpnp_vib_write_u8(struct qpnp_vib *vib, u8 *data, u16 reg)
 	rc = spmi_ext_register_writel(vib->spmi->ctrl, vib->spmi->sid,
 							reg, data, 1);
 	if (rc < 0){
-		pr_info("[Vibrator]: qpnp_vib_write_u8 Error, rc < 0\n");
 		dev_err(&vib->spmi->dev,
 			"Error writing address: %X - ret %X\n", reg, rc);
 	}
@@ -130,7 +128,6 @@ static int qpnp_vib_set(struct qpnp_vib *vib, int on)
 	u8 val;
 
 	if (on) {
-		pr_info("[Vibrator]:%s On\n",__func__);
 		val = vib->reg_vtg_ctl;
 		val &= ~QPNP_VIB_VTG_SET_MASK;
 		val |= (vib->vtg_level & QPNP_VIB_VTG_SET_MASK);
@@ -145,7 +142,6 @@ static int qpnp_vib_set(struct qpnp_vib *vib, int on)
 			return rc;
 		vib->reg_en_ctl = val;
 	} else {
-		pr_info("[Vibrator]:%s Off\n",__func__);
 		val = vib->reg_en_ctl;
 		val &= ~QPNP_VIB_EN;
 		rc = qpnp_vib_write_u8(vib, &val, QPNP_VIB_EN_CTL(vib->base));

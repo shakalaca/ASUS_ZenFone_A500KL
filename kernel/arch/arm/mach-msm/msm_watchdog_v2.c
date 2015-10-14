@@ -114,6 +114,7 @@ static int msm_watchdog_resume(struct device *dev)
 {
 	struct msm_watchdog_data *wdog_dd =
 			(struct msm_watchdog_data *)dev_get_drvdata(dev);
+	printk("[msm_watchdog] in %s\n",__func__);
 	if (!enable)
 		return 0;
 	__raw_writel(1, wdog_dd->base + WDT0_EN);

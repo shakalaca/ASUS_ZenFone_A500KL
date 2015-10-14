@@ -318,7 +318,7 @@ static int a_als_high_calibration_adc = 0;
 static int a_ps_hi_calibration_adc = 0;
 static int a_ps_lo_calibration_adc = 0;
 #endif
-static u32 g_cm36283_light_shift_calibration = -2;//40;
+static u32 g_cm36283_light_shift_calibration = -2; //40;
 static int g_cm36283_light_gain_calibration = 50858;//38000;
 static int cm36283_als_calibration_accuracy = 100000;
 /*
@@ -480,7 +480,7 @@ static int cm36283_turn_onoff_proxm(bool bOn)
 	g_cm36283_reset=0;
 
 	if(bOn == 1)	{	//power on
-		printk(DBGMSK_PRX_G4"[cm36283][ps] sensor switch, turn on proximity sensor ++.\n");
+		printk("[cm36283][ps] sensor switch, turn on proximity sensor ++.\n");
 
 		//set ps_threshold 0x06_L, 0x06_H
 		idata[0] = g_ps_threshold_lo;
@@ -516,11 +516,11 @@ static int cm36283_turn_onoff_proxm(bool bOn)
 		//Get Distance when light sensor turn on.
 		queue_work(cm36283_workqueue, &cm36283_proximity_interrupt_work);
 
-		printk(DBGMSK_PRX_G4"[cm36283][ps] sensor switch, turn on proximity sensor --.\n");
+		printk("[cm36283][ps] sensor switch, turn on proximity sensor --.\n");
 	}
 	else		//power off
 	{
-		printk(DBGMSK_PRX_G4"[cm36283][ps] turn off proximity sensor ++.\n");
+		printk("[cm36283][ps] turn off proximity sensor ++.\n");
 		idata[0] = (INIT_PS | 0x1);
 		idata[1] = INIT_PS;
 
@@ -538,7 +538,7 @@ static int cm36283_turn_onoff_proxm(bool bOn)
 		else
 			printk(DBGMSK_PRX_G4"[cm36283][ps] Clean PS_Data\n");
 
-		printk(DBGMSK_PRX_G4"[cm36283][ps] turn off proximity sensor --.\n");
+		printk("[cm36283][ps] turn off proximity sensor --.\n");
 	}
 	return 0;
 }
@@ -2083,7 +2083,10 @@ static int get_adc_calibrated_lux_from_cm36283(void)
 
 
 	/*Get Lux*/
-	if ( g_cm36283_light_k_adc <= 0 || g_cm36283_light_k_adc < g_cm36283_light_map[1] )//+++ eric_gong make report 0 lux when light sensor in full dark. 
+	//pansy_chen +++
+//	if ( g_cm36283_light_k_adc <= 0 || g_cm36283_light_k_adc < g_cm36283_light_map[1] )//+++ eric_gong make report 0 lux when light sensor in full dark.
+	if ( g_cm36283_light_k_adc <= 0)
+	//pansy_chen ---
 		g_cm36283_light = 0;
 	else
 		g_cm36283_light = g_cm36283_light_k_adc;	
@@ -2170,6 +2173,7 @@ static int cm36283_read_reg(struct i2c_client* client, u8 reg, int len, void *da
 		mutex_unlock(&g_cm36283_data_as->lock);
 	}while((err != ARRAY_SIZE(msg)) && (i<retries));
 	//ASUS_BSP --- pansy_chen "[A500KL][Sensor][NA][Spec] add  retries of cm36283 i2c read/write "
+
     if (err != ARRAY_SIZE(msg))
         printk(DBGMSK_PRX_G0"[cm36283] cm36283_read_reg err=%d, retries=%d\n", err, i);
 
@@ -2771,6 +2775,7 @@ static int cm36283_platform_suspend_noirq( struct device *dev )
 
 static int cm36283_platform_resume_noirq( struct device *dev )
 {
+        printk("[cm36283] in %s\n",__func__);
         return 0;
 }
 
