@@ -190,6 +190,16 @@ static int disable_slots;
 /* root can write, others read */
 module_param(disable_slots, int, S_IRUGO|S_IWUSR);
 
+// +++ ASUS_BSP : judge the vendor of eMMC
+/*
+ * eMMC_is_Hynix = 0;  We dont know the vendor.
+ * eMMC_is_Hynix = 1;  The vendor of eMMC is hynix.
+ * eMMC_is_Hynix = -1; The vendor of emmc is not hynix.
+ *
+ * */
+static int eMMC_is_Hynix = 0;
+// --- ASUS_BSP : judge the vendor of eMMC
+
 /* This structure keeps information per regulator */
 struct sdhci_msm_reg_data {
 	/* voltage regulator handle */
@@ -2005,6 +2015,30 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	int ret = 0;
 	int pwr_state = 0, io_level = 0;
 	unsigned long flags;
+
+// +++ ASUS_BSP : judge the vendor of eMMC , set vdd_data->is_always_on = true when vendor of eMMC is hynix.
+	if(!eMMC_is_Hynix)
+	{
+		if (msm_host->mmc->card && !strcmp(mmc_hostname(msm_host->mmc),"mmc0") )
+		{
+			printk("[eMMC] %s ==> manfid = %x \n",__func__,msm_host->mmc->card->cid.manfid);
+			// 0x90 is hynix vendor
+			if( 0x90 == msm_host->mmc->card->cid.manfid )
+			{
+				eMMC_is_Hynix = 1;
+				printk("[eMMC] %s ==> vdd_data->is_always_on = %d \n",__func__,msm_host->pdata->vreg_data->vdd_data->is_always_on);
+				msm_host->pdata->vreg_data->vdd_data->is_always_on = true;
+				printk("[eMMC] %s ==> vdd_data->is_always_on = %d \n",__func__,msm_host->pdata->vreg_data->vdd_data->is_always_on);
+			}
+			else
+				eMMC_is_Hynix = -1;
+		}
+		else
+		{
+			printk("[eMMC]  %s ==> card is null \n",__func__);
+		}
+	}
+// --- ASUS_BSP : judge the vendor of eMMC , set vdd_data->is_always_on = true when vendor of eMMC is hynix.
 
 	irq_status = readb_relaxed(msm_host->core_mem + CORE_PWRCTL_STATUS);
 	pr_debug("%s: Received IRQ(%d), status=0x%x\n",
