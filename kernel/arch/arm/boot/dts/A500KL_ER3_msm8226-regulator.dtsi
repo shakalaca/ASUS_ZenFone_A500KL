@@ -379,6 +379,7 @@
 			regulator-min-microvolt = <2950000>;
 			regulator-max-microvolt = <2950000>;
 			qcom,init-voltage = <2950000>;
+			regulator-always-on; /* ASUS BSP lei_guo Always Enable for eMMC  */
 			status = "okay";
 		};
 	};

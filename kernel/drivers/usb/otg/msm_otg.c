@@ -139,7 +139,7 @@ enum host_auto_sw {
 static int g_host_none_mode = 0;
 static int g_keep_power_on = 0;
 static int g_suspend_delay_work_run = 0;
-const char *usb_device_list[] = {"/Removable/USBdisk1", "/Removable/USBdisk2", "/Removable/SD", "/sys/class/net/eth0"};
+const char *usb_device_list[] = {"/Removable/USBdisk1", "/Removable/USBdisk2", "/Removable/SD", "/sys/class/net/eth0", "/sys/class/sound/card1"};
 static struct workqueue_struct *early_suspend_delay_wq;
 static struct delayed_work early_suspend_delay_work;
 static struct work_struct late_resume_work;
@@ -2821,6 +2821,7 @@ static void asus_usb_detect_work(struct work_struct *w)
 	g_charger_mode = ASUS_CHG_SRC_USB;
 	asus_chg_set_chg_mode(ASUS_CHG_SRC_USB);
 	printk("[USB] set_chg_mode: USB\n");
+	ASUSEvtlog("[USB] set_chg_mode: USB\n");
 }
 static void asus_chg_detect_work(struct work_struct *w)
 {
@@ -2830,6 +2831,7 @@ static void asus_chg_detect_work(struct work_struct *w)
 			g_charger_mode = ASUS_CHG_SRC_UNKNOWN;
 			asus_chg_set_chg_mode(ASUS_CHG_SRC_UNKNOWN);
 			printk("[USB] set_chg_mode: UNKNOWN\n");
+			ASUSEvtlog("[USB] set_chg_mode: UNKNOWN\n");
 		}
 		else{
 			printk("[USB] asus_chg_detect_work: BSV is not set,need re-check.(%d,%d)\n",msm_otg_bsv,test_bit(B_SESS_VLD, &motg->inputs));
@@ -2982,6 +2984,7 @@ static void msm_chg_detect_work(struct work_struct *w)
 		if(motg->chg_type != USB_SDP_CHARGER){
 			asus_chg_set_chg_mode(ASUS_CHG_SRC_DC);
 			printk("[USB] set_chg_mode: ASUS AC\n");
+			ASUSEvtlog("[USB] set_chg_mode: ASUS AC\n");
 		}
 		else{
 			if(g_usb_boot == MSM_OTG_USB_BOOT_IRQ){
@@ -3274,6 +3277,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 			g_charger_mode = ASUS_CHG_SRC_NONE;
 			asus_chg_set_chg_mode(ASUS_CHG_SRC_NONE);
 			printk("[USB] set_chg_mode: None\n");
+			ASUSEvtlog("[USB] set_chg_mode: None\n");
 #endif
 //ASUS_BSP--- "[USB][NA][Spec] Add ASUS charger mode support"
 			motg->chg_state = USB_CHG_STATE_UNDEFINED;

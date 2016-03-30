@@ -5860,6 +5860,11 @@ void report_hs_event(struct work_struct *work)
 				switch_set_state(&g_tapan->headset_jack->sdev, 2);
 				hs_sent_count = 0;
 			}
+			if (wcd9306_hs_data.hsmic_bias >= 0) {
+				gpio_direction_output(wcd9306_hs_data.hsmic_bias, 0);
+			} else { //non gpio
+				wcd9xxx_enable_micbias(&(g_tapan->mbhc), 0);
+			}
 		}
 	}
 }
